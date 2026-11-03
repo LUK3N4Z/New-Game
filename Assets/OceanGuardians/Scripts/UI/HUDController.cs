@@ -64,6 +64,12 @@ namespace OceanGuardians.UI
         [SerializeField] Button buyButton;
         [SerializeField] TMP_Text stageListText;
 
+        [Header("Ocean Journal")]
+        [SerializeField] GameObject journalPanel;
+        [SerializeField] Button journalButton;
+        [SerializeField] Button journalCloseButton;
+        [SerializeField] TMP_Text journalText;
+
         [Header("Minimap")]
         [SerializeField] RectTransform minimapRoot;
         [Tooltip("World metres from the player to the radar's edge.")]
@@ -84,6 +90,8 @@ namespace OceanGuardians.UI
             EventManager.RescueNearby += OnRescueNearby;
             EventManager.KioskToggled += OnKioskToggled;
             EventManager.StagePurchased += OnStagePurchased;
+            EventManager.JournalUnlocked += OnJournalChanged;
+            EventManager.CollectionChanged += RefreshJournal;
         }
 
         void OnDisable()
@@ -96,6 +104,8 @@ namespace OceanGuardians.UI
             EventManager.RescueNearby -= OnRescueNearby;
             EventManager.KioskToggled -= OnKioskToggled;
             EventManager.StagePurchased -= OnStagePurchased;
+            EventManager.JournalUnlocked -= OnJournalChanged;
+            EventManager.CollectionChanged -= RefreshJournal;
         }
 
         void Start()
@@ -106,12 +116,13 @@ namespace OceanGuardians.UI
             if (economy)
                 foreach (CurrencyType c in Enum.GetValues(typeof(CurrencyType)))
                     OnCurrencyChanged(c, economy.Get(c));
-            if (BagSystem.Instance) OnBagChanged(BagSystem.Instance.Current, BagSystem.Instance.MaxCapacity);
+            if (BagSystem.Instance) OnBagChanged(BagSystem.Instance.UsedSlots, BagSystem.Instance.MaxCapacity);
 
             alertText.text = "";
             grabberPrompt.SetActive(false);
             careButton.gameObject.SetActive(false);
             kioskPanel.SetActive(false);
+            journalPanel.SetActive(false);
 
             careButton.onClick.AddListener(OnCareClicked);
             depositTabButton.onClick.AddListener(() => ShowKioskPage(shop: false));
@@ -119,11 +130,15 @@ namespace OceanGuardians.UI
             closeButton.onClick.AddListener(() => openKiosk?.Close());
             quickDepositButton.onClick.AddListener(OnQuickDeposit);
             buyButton.onClick.AddListener(OnBuy);
+            journalButton.onClick.AddListener(ToggleJournal);
+            journalCloseButton.onClick.AddListener(ToggleJournal);
         }
 
         void Update()
         {
             if (alertText.text.Length > 0 && Time.time > alertHideTime) alertText.text = "";
+            var kb = UnityEngine.InputSystem.Keyboard.current;
+            if (kb != null && kb.jKey.wasPressedThisFrame) ToggleJournal();
             UpdateMinimap();
         }
 
@@ -134,7 +149,7 @@ namespace OceanGuardians.UI
             switch (type)
             {
                 case CurrencyType.RecyclingCredits: creditsText.text = $"Credits: {total}"; break;
-                case CurrencyType.CollectorCoins: coinsText.text = $"Finds: {total}"; break;
+                case CurrencyType.CollectorCoins: coinsText.text = $"Collector Coins: {total}"; break;
                 case CurrencyType.EcoTokens: ecoText.text = $"Eco: {total}"; break;
             }
             if (kioskPanel.activeSelf) RefreshShop();
@@ -149,7 +164,7 @@ namespace OceanGuardians.UI
 
         void OnItemCollected(ItemData item, Vector3 worldPos)
         {
-            string label = item is CollectibleData c ? $"+{c.coinValue} {item.displayName}" : $"+1 {item.displayName}";
+            string label = item is CollectibleItemData c ? $"+{c.coinValue} {item.displayName}" : $"+1 {item.displayName}";
             FloatingText.Spawn(floatingTextLayer, worldCamera, worldPos, label, item.popupColor);
         }
 
@@ -186,8 +201,8 @@ namespace OceanGuardians.UI
             openKiosk = kiosk;
             kioskPanel.SetActive(kiosk != null);
             if (kiosk == null) return;
-            depositResultText.text = BagSystem.Instance && BagSystem.Instance.Current > 0
-                ? $"You have {BagSystem.Instance.Current} items to sort."
+            depositResultText.text = BagSystem.Instance && !BagSystem.Instance.IsEmpty
+                ? $"You have {BagSystem.Instance.Bag.TotalQuantity} items to sort."
                 : "Your bag is empty.";
             ShowKioskPage(shop: false);
         }
@@ -244,6 +259,40 @@ namespace OceanGuardians.UI
                 sb.AppendLine($"<color={color}>{s:00}  {stage.name}  <size=80%>({status})</size></color>");
             }
             stageListText.text = sb.ToString();
+        }
+
+        // ---------- Ocean Journal ----------
+
+        void ToggleJournal()
+        {
+            journalPanel.SetActive(!journalPanel.activeSelf);
+            RefreshJournal();
+        }
+
+        void OnJournalChanged(JournalEntry _) => RefreshJournal();
+
+        void RefreshJournal()
+        {
+            var journal = OceanJournal.Instance;
+            if (journal == null || !journalPanel.activeSelf) return;
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"<b>Entries ({journal.UnlockedCount}/{journal.Entries.Count})</b>");
+            foreach (var e in journal.Entries)
+            {
+                if (journal.IsUnlocked(e.id))
+                    sb.AppendLine($"<color=#1A7F86>#{e.number} {e.title}</color>  <size=75%>{e.CategoryLabel}</size>\n<size=85%>{e.fact}</size>\n");
+                else
+                    sb.AppendLine($"<color=#9AA5B1>#{e.number} ???</color>\n");
+            }
+
+            sb.AppendLine("<b>Beach Collection</b>");
+            var bag = BagSystem.Instance;
+            if (bag == null || bag.Collection.Count == 0) sb.AppendLine("<color=#9AA5B1>Nothing yet - look for sea glass and shells!</color>");
+            else
+                foreach (var kv in bag.Collection)
+                    sb.AppendLine($"{kv.Key.displayName}  x{kv.Value}");
+            journalText.text = sb.ToString();
         }
 
         // ---------- Minimap ----------

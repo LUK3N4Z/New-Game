@@ -10,8 +10,9 @@ namespace OceanGuardians.Environment
 {
     /// <summary>
     /// A beach area that "blooms" once its litter is cleared: sand lightens, water clears,
-    /// and shorebirds/crabs spawn. Litter inside the radius is found automatically at Start.
-    /// Natural finds (shells, sea glass) don't count - only trash.
+    /// and shorebirds/crabs move in. Also the zone's wildlife spawner: a few creatures from the
+    /// start, more after the bloom. Litter inside the radius is found automatically at Start.
+    /// Natural finds and heavy litter (needs a later equipment stage) don't count toward the bloom.
     /// </summary>
     public class RestorationZone : MonoBehaviour
     {
@@ -26,12 +27,19 @@ namespace OceanGuardians.Environment
         [SerializeField] Renderer waterRenderer;
         [SerializeField] Color restoredWaterColor = new(0.25f, 0.85f, 0.85f);
         [SerializeField] float bloomDuration = 2.5f;
-        [Tooltip("Wildlife prefabs to spawn (e.g. Ghost Crab, Sanderling).")]
-        [SerializeField] GameObject[] wildlifePrefabs;
-        [SerializeField] int spawnsPerPrefab = 3;
         [Tooltip("Journal ids unlocked on bloom (the wildlife that returns, the habitat).")]
         [SerializeField] string[] journalEntriesOnBloom = { "ghost_crab", "sanderling", "tidepools" };
         [SerializeField] int ecoTokenReward = 15;
+
+        [Header("Wildlife Spawner")]
+        [Tooltip("AmbientCreature prefabs (e.g. Ghost Crab, Sanderling).")]
+        [SerializeField] GameObject[] wildlifePrefabs;
+        [Tooltip("Per prefab, present from the start so the beach isn't empty.")]
+        [SerializeField] int spawnsAtStart = 1;
+        [Tooltip("Per prefab, added when the zone blooms.")]
+        [SerializeField] int spawnsPerPrefab = 3;
+        [Tooltip("Rocks and tidepools crabs scuttle between.")]
+        [SerializeField] Transform[] habitatPoints;
 
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
@@ -42,9 +50,13 @@ namespace OceanGuardians.Environment
 
         void Start()
         {
-            foreach (var item in FindObjectsByType<LitterItem>())
-                if (item.IsLitter && FlatDistance(item.transform.position) <= radius)
+            // Include inactive: SaveManager deactivates litter that a loaded save says is already cleared.
+            foreach (var item in FindObjectsByType<LitterItem>(FindObjectsInactive.Include))
+                if (item.Data is LitterItemData { requiredStage: <= 1 } && FlatDistance(item.transform.position) <= radius)
                     litter.Add(item);
+
+            Spawn(spawnsAtStart);
+            if (UpdateProgress()) StartCoroutine(Bloom(instant: true)); // already clean in the loaded save
         }
 
         void OnEnable() => EventManager.ItemCollected += OnItemCollected;
@@ -52,20 +64,27 @@ namespace OceanGuardians.Environment
 
         void OnItemCollected(ItemData _, Vector3 __)
         {
-            if (restored || litter.Count == 0) return;
+            if (!restored && UpdateProgress()) StartCoroutine(Bloom(instant: false));
+        }
+
+        bool UpdateProgress()
+        {
+            if (litter.Count == 0) return false;
             int remaining = 0;
             foreach (var item in litter)
                 if (item != null && item.gameObject.activeInHierarchy) remaining++;
-
             Progress = 1f - remaining / (float)litter.Count;
-            if (Progress >= clearThreshold) StartCoroutine(Bloom());
+            return Progress >= clearThreshold;
         }
 
-        IEnumerator Bloom()
+        IEnumerator Bloom(bool instant)
         {
             restored = true;
-            EventManager.RaiseAlert($"{zoneName} is clean! Nature is coming back. +{ecoTokenReward} Eco");
-            EconomyManager.Instance?.Add(CurrencyType.EcoTokens, ecoTokenReward);
+            if (!instant)
+            {
+                EventManager.RaiseAlert($"{zoneName} is clean! Nature is coming back. +{ecoTokenReward} Eco");
+                EconomyManager.Instance?.Add(CurrencyType.EcoTokens, ecoTokenReward);
+            }
 
             // renderer.material makes a per-renderer copy so the shared asset isn't permanently changed.
             Material sand = sandRenderer ? sandRenderer.material : null;
@@ -73,29 +92,38 @@ namespace OceanGuardians.Environment
             Color sandFrom = sand ? sand.GetColor(BaseColorId) : default;
             Color waterFrom = water ? water.GetColor(BaseColorId) : default;
 
-            for (float t = 0f; t < bloomDuration; t += Time.deltaTime)
+            for (float t = 0f; !instant && t < bloomDuration; t += Time.deltaTime)
             {
                 float k = Mathf.SmoothStep(0f, 1f, t / bloomDuration);
                 if (sand) sand.SetColor(BaseColorId, Color.Lerp(sandFrom, restoredSandColor, k));
                 if (water) water.SetColor(BaseColorId, Color.Lerp(waterFrom, restoredWaterColor, k));
                 yield return null;
             }
+            if (sand) sand.SetColor(BaseColorId, restoredSandColor);
+            if (water) water.SetColor(BaseColorId, restoredWaterColor);
 
-            SpawnWildlife();
-            foreach (var id in journalEntriesOnBloom) OceanJournal.Instance?.Discover(id);
+            Spawn(spawnsPerPrefab);
+            if (!instant)
+                foreach (var id in journalEntriesOnBloom) OceanJournal.Instance?.Discover(id);
         }
 
-        void SpawnWildlife()
+        void Spawn(int perPrefab)
         {
             if (wildlifePrefabs == null) return;
+            var habitat = new List<Vector3>();
+            if (habitatPoints != null)
+                foreach (var h in habitatPoints)
+                    if (h) habitat.Add(h.position);
+
             foreach (var prefab in wildlifePrefabs)
             {
                 if (prefab == null) continue;
-                for (int i = 0; i < spawnsPerPrefab; i++)
+                for (int i = 0; i < perPrefab; i++)
                 {
                     var p = transform.position + Random.insideUnitSphere * (radius * 0.8f);
-                    if (NavMesh.SamplePosition(p, out var hit, 4f, NavMesh.AllAreas))
-                        Instantiate(prefab, hit.position, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
+                    if (!NavMesh.SamplePosition(p, out var hit, 4f, NavMesh.AllAreas)) continue;
+                    var go = Instantiate(prefab, hit.position, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
+                    if (go.TryGetComponent<AmbientCreature>(out var creature)) creature.Init(habitat);
                 }
             }
         }

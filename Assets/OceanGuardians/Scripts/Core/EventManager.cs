@@ -47,6 +47,10 @@ namespace OceanGuardians.Core
         public static event Action<WildlifeRescue> RescueNearby;
         /// <summary>Kiosk modal open (kiosk) / closed (null).</summary>
         public static event Action<RecyclingKiosk> KioskToggled;
+        /// <summary>The natural-finds collection changed (journal view refreshes).</summary>
+        public static event Action CollectionChanged;
+        /// <summary>A meaningful moment happened (deposit, rescue) - SaveManager auto-saves.</summary>
+        public static event Action Checkpoint;
 
         public static void RaiseCurrencyChanged(CurrencyType type, int total) => CurrencyChanged?.Invoke(type, total);
         public static void RaiseBagChanged(int current, int max) => BagChanged?.Invoke(current, max);
@@ -57,13 +61,15 @@ namespace OceanGuardians.Core
         public static void RaiseTargetChanged(IInteractable target) => TargetChanged?.Invoke(target);
         public static void RaiseRescueNearby(WildlifeRescue rescue) => RescueNearby?.Invoke(rescue);
         public static void RaiseKioskToggled(RecyclingKiosk kiosk) => KioskToggled?.Invoke(kiosk);
+        public static void RaiseCollectionChanged() => CollectionChanged?.Invoke();
+        public static void RaiseCheckpoint() => Checkpoint?.Invoke();
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ClearAll()
         {
             CurrencyChanged = null; BagChanged = null; ItemCollected = null; Alert = null;
             JournalUnlocked = null; StagePurchased = null; TargetChanged = null;
-            RescueNearby = null; KioskToggled = null;
+            RescueNearby = null; KioskToggled = null; CollectionChanged = null; Checkpoint = null;
         }
     }
 }

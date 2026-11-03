@@ -11,13 +11,15 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2f4fcfeecf913db409e868ea34dec316, type: 3}
   m_Name: Litter_SnackWrapper
-  m_EditorClassIdentifier: Assembly-CSharp::OceanGuardians.Items.LitterData
+  m_EditorClassIdentifier: Assembly-CSharp::OceanGuardians.Items.LitterItemData
+  id: snack_wrapper
   displayName: Snack Wrapper
+  description: 
   icon: {fileID: 0}
+  maxStack: 5
   journalEntryId: 
   pickupSound: {fileID: 0}
   popupColor: {r: 0.75, g: 1, b: 0.8, a: 1}
   bin: 0
   creditValue: 3
-  bagSlots: 1
   requiredStage: 0

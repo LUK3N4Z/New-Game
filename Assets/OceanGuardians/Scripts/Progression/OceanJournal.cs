@@ -46,6 +46,7 @@ namespace OceanGuardians.Progression
 
         public IReadOnlyList<JournalEntry> Entries => entries;
         public int UnlockedCount => unlocked.Count;
+        public IEnumerable<string> UnlockedIds => unlocked;
 
         void Awake() => Instance = this;
 
@@ -65,6 +66,13 @@ namespace OceanGuardians.Progression
             EconomyManager.Instance?.Add(CurrencyType.EcoTokens, ecoTokensPerEntry);
             EventManager.RaiseJournalUnlocked(entry);
             return true;
+        }
+
+        /// <summary>Save-load: marks entries unlocked silently (no popup, no Eco Tokens).</summary>
+        public void Restore(IEnumerable<string> ids)
+        {
+            unlocked.Clear();
+            foreach (var id in ids) unlocked.Add(id);
         }
 
         static List<JournalEntry> DefaultEntries() => new()

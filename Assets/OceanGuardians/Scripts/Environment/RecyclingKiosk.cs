@@ -58,25 +58,27 @@ namespace OceanGuardians.Environment
         public string QuickDepositAll()
         {
             var bag = BagSystem.Instance;
-            if (bag == null || bag.Current == 0) return "Your bag is empty. Go find some litter!";
+            if (bag == null || bag.IsEmpty) return "Your bag is empty. Go find some litter!";
 
-            var items = bag.EmptyAll();
-            int credits = 0;
+            int credits = 0, count = 0;
             var perBin = new int[3];
-            foreach (var litter in items)
+            foreach (var stack in bag.EmptyAll())
             {
-                credits += litter.creditValue;
-                perBin[(int)litter.bin]++;
+                if (stack.item is not LitterItemData litter) continue;
+                credits += litter.creditValue * stack.quantity;
+                perBin[(int)litter.bin] += stack.quantity;
+                count += stack.quantity;
             }
-            int eco = Mathf.CeilToInt(items.Count / (float)Mathf.Max(1, itemsPerEcoToken));
+            int eco = Mathf.CeilToInt(count / (float)Mathf.Max(1, itemsPerEcoToken));
 
             var economy = EconomyManager.Instance;
             economy?.Add(CurrencyType.RecyclingCredits, credits);
             economy?.Add(CurrencyType.EcoTokens, eco);
             OceanJournal.Instance?.Discover(journalEntryOnFirstDeposit);
+            EventManager.RaiseCheckpoint(); // auto-save
 
             var sb = new StringBuilder();
-            sb.Append($"Sorted {items.Count} items  ");
+            sb.Append($"Sorted {count} items  ");
             sb.Append($"<color=#4AA3FF>Blue {perBin[0]}</color>  ");
             sb.Append($"<color=#5CD65C>Green {perBin[1]}</color>  ");
             sb.Append($"<color=#FFD24A>Yellow {perBin[2]}</color>\n");

@@ -40,6 +40,13 @@ namespace OceanGuardians.Progression
 
         public string StageName(int stage) => database.Get(stage)?.name ?? $"Stage {stage}";
 
+        /// <summary>Save-load: jump straight to an owned stage (no cost, no events).</summary>
+        public void RestoreStage(int stage)
+        {
+            CurrentStage = Mathf.Clamp(stage, 1, database.Count);
+            Recalculate();
+        }
+
         public bool TryPurchaseNext(out string message)
         {
             var next = NextStage;

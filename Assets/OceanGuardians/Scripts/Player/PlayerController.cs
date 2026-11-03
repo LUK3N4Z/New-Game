@@ -108,7 +108,7 @@ namespace OceanGuardians.Player
         }
 
         /// <summary>UI raycast at the exact pointer position (reliable for touch on the press frame).</summary>
-        static bool IsOverUI(Vector2 screenPos)
+        public static bool IsOverUI(Vector2 screenPos)
         {
             var es = EventSystem.current;
             if (es == null) return false;

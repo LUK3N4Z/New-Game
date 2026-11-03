@@ -4,6 +4,7 @@ using System.Linq;
 using TMPro;
 using Unity.AI.Navigation;
 using Unity.Cinemachine;
+using UnityEditor.AssetPackage;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -11,6 +12,7 @@ using UnityEngine.AI;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
+using OceanGuardians.CameraControl;
 using OceanGuardians.Core;
 using OceanGuardians.Environment;
 using OceanGuardians.Items;
@@ -36,7 +38,7 @@ namespace OceanGuardians.EditorTools
         const string SceneDir = Root + "/Scenes";
         const string ScenePath = SceneDir + "/Beach_Greybox.unity";
 
-        static Material fxMaterial;
+        static Material fxMaterial, glintMaterial, glintFindMaterial;
         static Sprite roundSprite, panelSprite;
 
         [MenuItem("Ocean Guardians/Build Greybox Beach Scene")]
@@ -50,6 +52,8 @@ namespace OceanGuardians.EditorTools
             roundSprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Knob.psd");
             panelSprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
             fxMaterial = FxMaterial();
+            glintMaterial = GlintMaterial("FX_Glint", new Color(1.4f, 1.3f, 0.9f));
+            glintFindMaterial = GlintMaterial("FX_Glint_Find", new Color(0.9f, 1.3f, 1.4f));
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
             var cam = Camera.main;
@@ -60,8 +64,11 @@ namespace OceanGuardians.EditorTools
             // ---------- Static world (baked into the NavMesh) ----------
             var sand = Prim(PrimitiveType.Plane, "Sand", null, Vector3.zero, new Vector3(5f, 1f, 5f), Mat("Sand", new Color(0.78f, 0.68f, 0.5f)));
             var navSurface = sand.AddComponent<NavMeshSurface>();
+            var rocks = new List<Transform>();
             foreach (var (pos, size) in new[] { (new Vector3(-20f, 0f, 18f), 3f), (new Vector3(18f, 0f, -16f), 2.5f), (new Vector3(4f, 0f, 20f), 2f), (new Vector3(-14f, 0f, 4f), 1.6f) })
-                Prim(PrimitiveType.Sphere, "Rock", null, pos, new Vector3(size, size * 0.6f, size), Mat("Rock", new Color(0.45f, 0.45f, 0.48f)));
+                rocks.Add(Prim(PrimitiveType.Sphere, "Rock", null, pos, new Vector3(size, size * 0.6f, size), Mat("Rock", new Color(0.45f, 0.45f, 0.48f))).transform);
+            // Tall bluff between the usual camera position and the beach: shows the camera deoccluder at work.
+            Prim(PrimitiveType.Cube, "RockBluff", null, new Vector3(12f, 3f, -21f), new Vector3(9f, 6f, 4f), Mat("Rock", Color.gray)).transform.rotation = Quaternion.Euler(0f, 15f, 0f);
             var kiosk = BuildKiosk(new Vector3(-10f, 0f, -8f));
 
             navSurface.BuildNavMesh();
@@ -71,6 +78,13 @@ namespace OceanGuardians.EditorTools
             // ---------- Things that shouldn't carve the NavMesh ----------
             var water = Prim(PrimitiveType.Plane, "Water", null, new Vector3(0f, -0.15f, 45f), new Vector3(8f, 1f, 4f), Mat("Water", new Color(0.2f, 0.4f, 0.42f)));
             Object.DestroyImmediate(water.GetComponent<Collider>()); // clicks on water shouldn't count as ground
+            BuildWaves();
+            foreach (var pos in new[] { new Vector3(-7f, 0f, 21f), new Vector3(13f, 0f, 20f) })
+            {
+                var pool = Prim(PrimitiveType.Cylinder, "Tidepool", null, pos + Vector3.up * 0.01f, new Vector3(2.6f, 0.01f, 1.8f), Mat("Tidepool", new Color(0.25f, 0.55f, 0.6f)));
+                Object.DestroyImmediate(pool.GetComponent<Collider>());
+                rocks.Add(pool.transform); // crab habitat
+            }
 
             var data = CreateData();
             var player = BuildPlayer(new Vector3(0f, 0f, -4f), cam);
@@ -81,12 +95,10 @@ namespace OceanGuardians.EditorTools
             var zone = new GameObject("RestorationZone_SealCove").AddComponent<RestorationZone>();
             zone.transform.position = new Vector3(0f, 0f, 2f);
             Wire(zone, ("radius", 28f), ("sandRenderer", sand.GetComponent<Renderer>()), ("waterRenderer", water.GetComponent<Renderer>()));
-            var wildlife = new SerializedObject(zone);
-            var arr = wildlife.FindProperty("wildlifePrefabs");
-            arr.arraySize = 2;
-            arr.GetArrayElementAtIndex(0).objectReferenceValue = CritterPrefab("GhostCrab", new Color(0.9f, 0.8f, 0.62f), new Vector3(0.4f, 0.15f, 0.3f));
-            arr.GetArrayElementAtIndex(1).objectReferenceValue = CritterPrefab("Sanderling", new Color(0.95f, 0.95f, 0.95f), new Vector3(0.25f, 0.3f, 0.4f));
-            wildlife.ApplyModifiedPropertiesWithoutUndo();
+            WireArray(zone, "wildlifePrefabs",
+                CritterPrefab("GhostCrab", AmbientCreature.Species.GhostCrab, new Color(0.9f, 0.8f, 0.62f), new Vector3(0.4f, 0.15f, 0.3f)),
+                CritterPrefab("Sanderling", AmbientCreature.Species.Sanderling, new Color(0.95f, 0.95f, 0.95f), new Vector3(0.25f, 0.3f, 0.4f)));
+            WireArray(zone, "habitatPoints", rocks.ToArray());
 
             // ---------- Managers ----------
             var game = new GameObject("_Game");
@@ -95,6 +107,7 @@ namespace OceanGuardians.EditorTools
             game.AddComponent<BagSystem>();
             Wire(game.AddComponent<ProgressionManager>(), ("database", data.database));
             game.AddComponent<OceanJournal>();
+            WireArray(game.AddComponent<SaveManager>(), "itemCatalog", data.items.Select(i => (Object)i.data).ToArray());
 
             new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule)).GetComponent<InputSystemUIInputModule>().AssignDefaultActions();
             BuildHud(cam, player.transform, kiosk.transform, seal.transform);
@@ -107,6 +120,14 @@ namespace OceanGuardians.EditorTools
             Debug.Log("[Ocean Guardians] Greybox beach built at " + ScenePath + ". Press Play and click to move!");
             // CLI: Unity -batchmode -executeMethod ...Build (no -quit, so the async TMP import can finish first)
             if (Application.isBatchMode) EditorApplication.Exit(0);
+        }
+
+        [MenuItem("Ocean Guardians/Delete Save File")]
+        public static void DeleteSave()
+        {
+            string path = Path.Combine(Application.persistentDataPath, "savegame.json");
+            if (File.Exists(path)) File.Delete(path);
+            Debug.Log("[Ocean Guardians] Save file deleted: " + path);
         }
 
         // =====================================================================
@@ -124,30 +145,33 @@ namespace OceanGuardians.EditorTools
             var d = new GameData();
             d.database = Asset<EquipmentStageData>("EquipmentStageDatabase", db => db.PopulateDefaults());
 
-            void Litter(string name, RecycleBin bin, int credits, int slots, int stage, string journal, PrimitiveType shape, Vector3 scale, Color color)
+            void Litter(string name, RecycleBin bin, int credits, int stack, int stage, string journal, PrimitiveType shape, Vector3 scale, Color color)
             {
-                var asset = Asset<LitterData>("Litter_" + name.Replace(" ", ""), l =>
+                var asset = Asset<LitterItemData>("Litter_" + name.Replace(" ", ""), l =>
                 {
-                    l.displayName = name; l.bin = bin; l.creditValue = credits; l.bagSlots = slots;
+                    l.SetId(name.ToLowerInvariant().Replace(' ', '_'));
+                    l.displayName = name; l.bin = bin; l.creditValue = credits; l.maxStack = stack;
                     l.requiredStage = stage; l.journalEntryId = journal; l.popupColor = new Color(0.75f, 1f, 0.8f);
                 });
                 d.items.Add((asset, shape, scale, color));
             }
             void Find(string name, int coins, string journal, PrimitiveType shape, Vector3 scale, Color color)
             {
-                var asset = Asset<CollectibleData>("Find_" + name.Replace(" ", ""), c =>
+                var asset = Asset<CollectibleItemData>("Find_" + name.Replace(" ", ""), c =>
                 {
+                    c.SetId(name.ToLowerInvariant().Replace(' ', '_'));
+                    c.maxStack = 99;
                     c.displayName = name; c.coinValue = coins; c.journalEntryId = journal; c.popupColor = new Color(1f, 0.85f, 1f);
                 });
                 d.items.Add((asset, shape, scale, color));
             }
 
-            Litter("Plastic Bottle", RecycleBin.Blue, 5, 1, 0, "plastic_bottle", PrimitiveType.Cylinder, new Vector3(0.18f, 0.25f, 0.18f), new Color(0.6f, 0.85f, 1f));
-            Litter("Soda Can", RecycleBin.Green, 6, 1, 0, "aluminum_can", PrimitiveType.Cylinder, new Vector3(0.15f, 0.12f, 0.15f), new Color(0.9f, 0.2f, 0.2f));
-            Litter("Snack Wrapper", RecycleBin.Blue, 3, 1, 0, "", PrimitiveType.Cube, new Vector3(0.35f, 0.03f, 0.2f), new Color(1f, 0.75f, 0.1f));
-            Litter("Glass Jar", RecycleBin.Green, 6, 1, 0, "", PrimitiveType.Cylinder, new Vector3(0.22f, 0.15f, 0.22f), new Color(0.75f, 0.95f, 0.85f));
-            Litter("Car Tire", RecycleBin.Yellow, 25, 3, 9, "", PrimitiveType.Cylinder, new Vector3(0.9f, 0.12f, 0.9f), new Color(0.12f, 0.12f, 0.12f));
-            Litter("Driftwood Clump", RecycleBin.Yellow, 2, 1, 0, "", PrimitiveType.Cube, new Vector3(0.9f, 0.15f, 0.2f), new Color(0.55f, 0.4f, 0.25f));
+            Litter("Plastic Bottle", RecycleBin.Blue, 5, 3, 0, "plastic_bottle", PrimitiveType.Cylinder, new Vector3(0.18f, 0.25f, 0.18f), new Color(0.6f, 0.85f, 1f));
+            Litter("Soda Can", RecycleBin.Green, 6, 4, 0, "aluminum_can", PrimitiveType.Cylinder, new Vector3(0.15f, 0.12f, 0.15f), new Color(0.9f, 0.2f, 0.2f));
+            Litter("Snack Wrapper", RecycleBin.Blue, 3, 5, 0, "", PrimitiveType.Cube, new Vector3(0.35f, 0.03f, 0.2f), new Color(1f, 0.75f, 0.1f));
+            Litter("Glass Jar", RecycleBin.Green, 6, 2, 0, "", PrimitiveType.Cylinder, new Vector3(0.22f, 0.15f, 0.22f), new Color(0.75f, 0.95f, 0.85f));
+            Litter("Car Tire", RecycleBin.Yellow, 25, 1, 9, "", PrimitiveType.Cylinder, new Vector3(0.9f, 0.12f, 0.9f), new Color(0.12f, 0.12f, 0.12f));
+            Litter("Driftwood Clump", RecycleBin.Yellow, 2, 2, 0, "", PrimitiveType.Cube, new Vector3(0.9f, 0.15f, 0.2f), new Color(0.55f, 0.4f, 0.25f));
             Find("Sea Glass", 3, "sea_glass", PrimitiveType.Sphere, new Vector3(0.15f, 0.08f, 0.12f), new Color(0.3f, 0.85f, 0.7f));
             Find("Scallop Shell", 1, "mollusk_shells", PrimitiveType.Sphere, new Vector3(0.25f, 0.06f, 0.22f), new Color(1f, 0.7f, 0.65f));
             Find("Conch Shell", 2, "mollusk_shells", PrimitiveType.Capsule, new Vector3(0.18f, 0.18f, 0.18f), new Color(1f, 0.82f, 0.7f));
@@ -202,17 +226,49 @@ namespace OceanGuardians.EditorTools
             cam.clearFlags = CameraClearFlags.SolidColor;
 
             // 55 degree pitch, fixed rotation; CinemachineFollow in world space keeps the offset (no orbiting).
+            // IsoCameraRig drives zoom + look-ahead; CinemachineDeoccluder keeps rocks from blocking the view.
             const float pitch = 55f, distance = 24f;
             var offset = new Vector3(0f, Mathf.Sin(pitch * Mathf.Deg2Rad), -Mathf.Cos(pitch * Mathf.Deg2Rad)) * distance;
+            var lead = new GameObject("CameraLeadTarget").transform;
+            lead.position = player.position;
             var go = new GameObject("CM_IsoCamera");
             go.transform.SetPositionAndRotation(player.position + offset, Quaternion.Euler(pitch, 0f, 0f));
             var vcam = go.AddComponent<CinemachineCamera>();
-            vcam.Follow = player;
+            vcam.Follow = lead;
             vcam.Lens.FieldOfView = 35f;
             var follow = go.AddComponent<CinemachineFollow>();
             follow.FollowOffset = offset;
             follow.TrackerSettings.BindingMode = Unity.Cinemachine.TargetTracking.BindingMode.WorldSpace;
-            follow.TrackerSettings.PositionDamping = new Vector3(0.8f, 0.8f, 0.8f);
+            follow.TrackerSettings.PositionDamping = new Vector3(0.6f, 0.6f, 0.6f);
+
+            var deoccluder = go.AddComponent<CinemachineDeoccluder>();
+            deoccluder.CollideAgainst = 1; // Default layer: sand, rocks, bluff (litter colliders are triggers and are ignored)
+            deoccluder.MinimumDistanceFromTarget = 2f;
+            var avoid = deoccluder.AvoidObstacles;
+            avoid.Enabled = true;
+            avoid.CameraRadius = 0.5f;
+            avoid.Strategy = CinemachineDeoccluder.ObstacleAvoidance.ResolutionStrategy.PullCameraForward;
+            avoid.MaximumEffort = 4;
+            avoid.SmoothingTime = 0.3f;
+            avoid.Damping = 0.6f;              // ease back out once the obstacle is gone
+            avoid.DampingWhenOccluded = 0.15f; // pull in quickly so Coral is never hidden
+            deoccluder.AvoidObstacles = avoid;
+
+            Wire(go.AddComponent<IsoCameraRig>(), ("player", player), ("leadTarget", lead), ("pitch", pitch), ("startDistance", distance));
+        }
+
+        static void BuildWaves()
+        {
+            var root = new GameObject("ShoreWaves");
+            root.transform.position = new Vector3(0f, 0f, 25f); // the sand's far edge; forward (+Z) = out to sea
+            var wash = Prim(PrimitiveType.Cube, "Wash", root.transform, Vector3.zero, new Vector3(50f, 0.02f, 1f), Mat("Wash", new Color(0.55f, 0.78f, 0.78f)));
+            var foam = Prim(PrimitiveType.Cube, "Foam", root.transform, Vector3.zero, new Vector3(50f, 0.03f, 0.35f), Mat("Foam", new Color(0.97f, 0.98f, 0.97f)));
+            foreach (var go in new[] { wash, foam })
+            {
+                Object.DestroyImmediate(go.GetComponent<Collider>());
+                go.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+            Wire(root.AddComponent<ShoreWaves>(), ("foam", foam.transform), ("wash", wash.transform), ("reach", 4.5f));
         }
 
         static GameObject BuildKiosk(Vector3 pos)
@@ -271,7 +327,7 @@ namespace OceanGuardians.EditorTools
             // 3 of each litter type (only 1 tire), 2 of each natural find.
             foreach (var (item, shape, scale, color) in data.items)
             {
-                int count = item is CollectibleData ? 2 : item.displayName == "Car Tire" ? 1 : 3;
+                int count = item is CollectibleItemData ? 2 : item.displayName == "Car Tire" ? 1 : 3;
                 for (int i = 0; i < count; i++)
                 {
                     Vector3 p;
@@ -290,23 +346,37 @@ namespace OceanGuardians.EditorTools
                     Object.DestroyImmediate(vis.GetComponent<Collider>());
                     var col = root.AddComponent<SphereCollider>();
                     col.isTrigger = true; col.radius = 0.7f; col.center = new Vector3(0f, 0.3f, 0f); // big tap target
-                    Particles(root.transform, "Sparkle", item is CollectibleData ? new Color(1f, 0.85f, 1f) : new Color(1f, 1f, 0.75f),
-                        loop: true, rate: 4f, burst: 0, size: 0.12f, speed: 0.4f, lifetime: 0.9f).transform.localPosition = Vector3.up * 0.3f;
-                    Wire(root.AddComponent<LitterItem>(), ("data", item));
+                    var glint = Prim(PrimitiveType.Quad, "Glint", root.transform, new Vector3(0f, 0.45f, 0f), Vector3.one, item is CollectibleItemData ? glintFindMaterial : glintMaterial);
+                    Object.DestroyImmediate(glint.GetComponent<Collider>());
+                    glint.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    Wire(root.AddComponent<LitterItem>(), ("data", item), ("saveId", $"litter_{parent.childCount:000}"));
                 }
             }
         }
 
-        static GameObject CritterPrefab(string name, Color color, Vector3 scale)
+        /// <summary>Greybox creature prefab. Always regenerated (it's builder-owned) so component changes land.</summary>
+        static GameObject CritterPrefab(string name, AmbientCreature.Species species, Color color, Vector3 scale)
         {
             string path = $"{PrefabDir}/{name}.prefab";
-            var existing = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-            if (existing) return existing;
             var root = new GameObject(name);
-            Prim(PrimitiveType.Sphere, "Body", root.transform, new Vector3(0f, scale.y, 0f), scale, Mat("Critter_" + name, color));
-            Prim(PrimitiveType.Sphere, "Eye", root.transform, new Vector3(0.08f, scale.y * 1.6f, scale.z * 0.4f), Vector3.one * 0.06f, Mat("Critter_Eye", Color.black));
-            Prim(PrimitiveType.Sphere, "Eye", root.transform, new Vector3(-0.08f, scale.y * 1.6f, scale.z * 0.4f), Vector3.one * 0.06f, Mat("Critter_Eye", Color.black));
+            var visual = new GameObject("Visual").transform;
+            visual.SetParent(root.transform, false);
+            Prim(PrimitiveType.Sphere, "Body", visual, new Vector3(0f, scale.y, 0f), scale, Mat("Critter_" + name, color));
+            Prim(PrimitiveType.Sphere, "Eye", visual, new Vector3(0.08f, scale.y * 1.6f, scale.z * 0.4f), Vector3.one * 0.06f, Mat("Critter_Eye", Color.black));
+            Prim(PrimitiveType.Sphere, "Eye", visual, new Vector3(-0.08f, scale.y * 1.6f, scale.z * 0.4f), Vector3.one * 0.06f, Mat("Critter_Eye", Color.black));
+            if (species == AmbientCreature.Species.Sanderling)
+                Prim(PrimitiveType.Cube, "Beak", visual, new Vector3(0f, scale.y * 1.3f, scale.z * 0.75f), new Vector3(0.03f, 0.03f, 0.18f), Mat("Critter_Eye", Color.black));
             foreach (var c in root.GetComponentsInChildren<Collider>()) Object.DestroyImmediate(c);
+
+            var agent = root.AddComponent<NavMeshAgent>();
+            agent.radius = 0.2f; agent.height = 0.5f; agent.acceleration = 30f; agent.angularSpeed = 600f;
+            agent.stoppingDistance = 0.1f;
+            agent.obstacleAvoidanceType = ObstacleAvoidanceType.NoObstacleAvoidance; // Coral steers around them, not vice versa
+            var creature = root.AddComponent<AmbientCreature>();
+            Wire(creature, ("visual", visual));
+            var so = new SerializedObject(creature);
+            so.FindProperty("species").enumValueIndex = (int)species;
+            so.ApplyModifiedPropertiesWithoutUndo();
             var prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
             Object.DestroyImmediate(root);
             return prefab;
@@ -331,9 +401,10 @@ namespace OceanGuardians.EditorTools
 
             // ---- Top bar ----
             var top = Panel("TopBar", hud, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -45f), new Vector2(0f, 90f), new Color(0f, 0.2f, 0.3f, 0.55f));
-            var credits = Pill(top, "Credits", new Vector2(190f, 0f), new Color(0.2f, 0.5f, 0.95f), "Credits: 0");
-            var coins = Pill(top, "Finds", new Vector2(520f, 0f), new Color(0.7f, 0.4f, 0.85f), "Finds: 0");
-            var eco = Pill(top, "Eco", new Vector2(850f, 0f), new Color(0.25f, 0.7f, 0.35f), "Eco: 0");
+            var credits = Pill(top, "Credits", new Vector2(200f, 0f), new Color(0.2f, 0.5f, 0.95f), "Credits: 0");
+            var coins = Pill(top, "CollectorCoins", new Vector2(570f, 0f), new Color(0.7f, 0.4f, 0.85f), "Collector Coins: 0", width: 380f);
+            var eco = Pill(top, "Eco", new Vector2(940f, 0f), new Color(0.25f, 0.7f, 0.35f), "Eco: 0");
+            var journalBtn = Btn("JournalButton", top, "Journal (J)", new Color(0.95f, 0.6f, 0.3f), new Vector2(0f, 0.5f), new Vector2(1250f, 0f), new Vector2(230f, 62f));
 
             // ---- Bag gauge (bottom-left) ----
             var bag = Panel("BagWidget", hud, Vector2.zero, Vector2.zero, new Vector2(220f, 70f), new Vector2(380f, 90f), new Color(0f, 0.2f, 0.3f, 0.7f));
@@ -383,6 +454,7 @@ namespace OceanGuardians.EditorTools
 
             // ---- Kiosk modal ----
             var modal = Panel("KioskPanel", hud, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(920f, 640f), new Color(0.97f, 0.97f, 0.94f, 0.97f));
+            modal.raycastTarget = true; // block clicks from reaching the beach behind the modal
             var mt = modal.rectTransform;
             var header = Text("Header", mt, "Recycling Kiosk", 40, new Color(0.1f, 0.4f, 0.45f));
             Place(header.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -45f), new Vector2(700f, 60f));
@@ -404,7 +476,16 @@ namespace OceanGuardians.EditorTools
             Place(nextText.rectTransform, new Vector2(0f, 1f), new Vector2(230f, -60f), new Vector2(440f, 120f));
             nextText.alignment = TextAlignmentOptions.TopLeft;
             var buy = Btn("BuyNext", shopPage, "Buy Upgrade", new Color(0.25f, 0.75f, 0.35f), new Vector2(0f, 1f), new Vector2(160f, -170f), new Vector2(300f, 70f));
-            var listText = ScrollingText(shopPage, out _);
+            var listText = ScrollingText("StageList", shopPage, new Vector2(1f, 0f), Vector2.one, new Vector2(-210f, 0f), new Vector2(400f, 0f));
+
+            // ---- Ocean Journal panel ----
+            var journal = Panel("JournalPanel", hud, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(860f, 760f), new Color(0.99f, 0.96f, 0.88f, 0.98f));
+            journal.raycastTarget = true;
+            var jHeader = Text("Header", journal, "Ocean Journal", 40, new Color(0.1f, 0.4f, 0.45f));
+            Place(jHeader.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -45f), new Vector2(700f, 60f));
+            jHeader.fontStyle = FontStyles.Bold;
+            var jClose = Btn("Close", journal, "X", new Color(0.85f, 0.35f, 0.35f), Vector2.one, new Vector2(-45f, -45f), new Vector2(60f, 60f));
+            var journalText = ScrollingText("Entries", journal, Vector2.zero, Vector2.one, new Vector2(0f, -40f), new Vector2(-60f, -140f));
 
             Wire(canvasGo.AddComponent<HUDController>(),
                 ("creditsText", credits), ("coinsText", coins), ("ecoText", eco),
@@ -416,6 +497,7 @@ namespace OceanGuardians.EditorTools
                 ("depositPage", depositPage.gameObject), ("shopPage", shopPage.gameObject),
                 ("quickDepositButton", deposit), ("depositResultText", result),
                 ("nextStageText", nextText), ("buyButton", buy), ("stageListText", listText),
+                ("journalPanel", journal.gameObject), ("journalButton", journalBtn), ("journalCloseButton", jClose), ("journalText", journalText),
                 ("minimapRoot", map.rectTransform));
 
             var so = new SerializedObject(canvasGo.GetComponent<HUDController>());
@@ -433,11 +515,12 @@ namespace OceanGuardians.EditorTools
             mapPlayer.transform.SetAsLastSibling();
         }
 
-        static TMP_Text ScrollingText(RectTransform parent, out ScrollRect scroll)
+        static TMP_Text ScrollingText(string name, Component parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 pos, Vector2 size)
         {
-            var view = Panel("StageList", parent, new Vector2(1f, 0f), Vector2.one, new Vector2(-210f, 0f), new Vector2(400f, 0f), new Color(0f, 0.2f, 0.3f, 0.08f));
+            var view = Panel(name, parent, anchorMin, anchorMax, pos, size, new Color(0f, 0.2f, 0.3f, 0.08f));
+            view.raycastTarget = true; // the ScrollRect needs a raycast target to receive wheel/drag
             view.gameObject.AddComponent<RectMask2D>();
-            scroll = view.gameObject.AddComponent<ScrollRect>();
+            var scroll = view.gameObject.AddComponent<ScrollRect>();
             scroll.horizontal = false;
             scroll.scrollSensitivity = 30f;
             var text = Text("Content", view.rectTransform, "", 20, Color.black);
@@ -487,6 +570,17 @@ namespace OceanGuardians.EditorTools
             m = new Material(Shader.Find("Sprites/Default"));
             var tex = AssetDatabase.GetBuiltinExtraResource<Texture2D>("Default-Particle.psd");
             m.mainTexture = tex ? tex : roundSprite.texture;
+            AssetDatabase.CreateAsset(m, path);
+            return m;
+        }
+
+        static Material GlintMaterial(string name, Color color)
+        {
+            string path = $"{MatDir}/{name}.mat";
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (m != null) return m;
+            m = new Material(Shader.Find("OceanGuardians/SparkleGlint"));
+            m.SetColor("_Color", color);
             AssetDatabase.CreateAsset(m, path);
             return m;
         }
@@ -563,9 +657,9 @@ namespace OceanGuardians.EditorTools
             return t;
         }
 
-        static TMP_Text Pill(Component parent, string name, Vector2 pos, Color color, string label, float anchorX = 0f)
+        static TMP_Text Pill(Component parent, string name, Vector2 pos, Color color, string label, float anchorX = 0f, float width = 300f)
         {
-            var img = Panel(name, parent, new Vector2(anchorX, 0.5f), new Vector2(anchorX, 0.5f), pos, new Vector2(300f, 62f), color);
+            var img = Panel(name, parent, new Vector2(anchorX, 0.5f), new Vector2(anchorX, 0.5f), pos, new Vector2(width, 62f), color);
             var t = Text("Label", img.rectTransform, label, 28, Color.white);
             t.fontStyle = FontStyles.Bold;
             return t;
@@ -579,6 +673,16 @@ namespace OceanGuardians.EditorTools
             var t = Text("Label", img.rectTransform, label, 30, Color.white);
             t.fontStyle = FontStyles.Bold;
             return b;
+        }
+
+        /// <summary>Assign an object array [SerializeField] by name.</summary>
+        static void WireArray(Object target, string name, params Object[] values)
+        {
+            var so = new SerializedObject(target);
+            var p = so.FindProperty(name);
+            p.arraySize = values.Length;
+            for (int i = 0; i < values.Length; i++) p.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
+            so.ApplyModifiedPropertiesWithoutUndo();
         }
 
         /// <summary>Assign private [SerializeField]s by name, the same way the Inspector does.</summary>
@@ -616,7 +720,7 @@ namespace OceanGuardians.EditorTools
             }
             Debug.Log("[Ocean Guardians] Importing TMP Essential Resources first...");
             AssetDatabase.importPackageCompleted += OnTmpImported;
-            AssetDatabase.ImportPackage(pkg, false);
+            Package.Import(pkg, false);
             return false;
         }
 

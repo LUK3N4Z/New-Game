@@ -11,9 +11,12 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0d36e66e79ce3424eb0e88b130fd431d, type: 3}
   m_Name: Find_ScallopShell
-  m_EditorClassIdentifier: Assembly-CSharp::OceanGuardians.Items.CollectibleData
+  m_EditorClassIdentifier: Assembly-CSharp::OceanGuardians.Items.CollectibleItemData
+  id: scallop_shell
   displayName: Scallop Shell
+  description: 
   icon: {fileID: 0}
+  maxStack: 99
   journalEntryId: mollusk_shells
   pickupSound: {fileID: 0}
   popupColor: {r: 1, g: 0.85, b: 1, a: 1}

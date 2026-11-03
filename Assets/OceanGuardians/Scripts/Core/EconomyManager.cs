@@ -36,6 +36,13 @@ namespace OceanGuardians.Core
             EventManager.RaiseCurrencyChanged(type, balances[(int)type]);
         }
 
+        /// <summary>Save-load: sets a balance directly.</summary>
+        public void SetBalance(CurrencyType type, int amount)
+        {
+            balances[(int)type] = Mathf.Max(0, amount);
+            EventManager.RaiseCurrencyChanged(type, balances[(int)type]);
+        }
+
         /// <summary>Spends only if the full amount is available.</summary>
         public bool TrySpend(CurrencyType type, int amount)
         {

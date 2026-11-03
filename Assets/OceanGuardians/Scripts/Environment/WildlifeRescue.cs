@@ -15,6 +15,8 @@ namespace OceanGuardians.Environment
     public class WildlifeRescue : MonoBehaviour, IInteractable
     {
         [SerializeField] string animalName = "Seal Pup";
+        [Tooltip("Unique per rescue in the scene; SaveManager remembers it was completed.")]
+        [SerializeField] string saveId = "seal_pup";
         [SerializeField] float interactionRange = 1.6f;
         [Tooltip("Aura + Care prompt appear inside this radius.")]
         [SerializeField] float proximityRadius = 5f;
@@ -41,6 +43,7 @@ namespace OceanGuardians.Environment
         Transform player;
         bool playerNear;
 
+        public string SaveId => saveId;
         public bool IsRescued { get; private set; }
         public bool InProgress { get; private set; }
         public InteractionKind Kind => InteractionKind.Rescue;
@@ -113,6 +116,15 @@ namespace OceanGuardians.Environment
 
             InProgress = false;
             coral.InputLocked = false;
+            EventManager.RaiseCheckpoint(); // auto-save
+        }
+
+        /// <summary>Save-load: show the animal already freed, with no rewards or popups.</summary>
+        public void RestoreRescued()
+        {
+            IsRescued = true;
+            if (netObject) netObject.SetActive(false);
+            if (auraObject) auraObject.SetActive(false);
         }
 
         /// <summary>Two little bounces so the moment reads even without an animal rig.</summary>
