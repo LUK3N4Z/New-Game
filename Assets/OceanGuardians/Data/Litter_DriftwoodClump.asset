@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2f4fcfeecf913db409e868ea34dec316, type: 3}
+  m_Name: Litter_DriftwoodClump
+  m_EditorClassIdentifier: Assembly-CSharp::OceanGuardians.Items.LitterData
+  displayName: Driftwood Clump
+  icon: {fileID: 0}
+  journalEntryId: 
+  pickupSound: {fileID: 0}
+  popupColor: {r: 0.75, g: 1, b: 0.8, a: 1}
+  bin: 2
+  creditValue: 2
+  bagSlots: 1
+  requiredStage: 0

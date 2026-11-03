@@ -1,0 +1,365 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ae926ab6ecd1dd245bfbdbcfd987634d, type: 3}
+  m_Name: EquipmentStageDatabase
+  m_EditorClassIdentifier: Assembly-CSharp::OceanGuardians.Progression.EquipmentStageData
+  stages:
+  - stage: 1
+    name: Basic Collection Bag
+    description: Your trusty first bag. Holds 10 pieces of litter.
+    creditCost: 0
+    bagCapacityBonus: 0
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 2
+    name: Protective Gloves
+    description: Another step toward protecting the open ocean!
+    creditCost: 45
+    bagCapacityBonus: 0
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 3
+    name: Basic Litter Picker
+    description: +0.25m grabber reach.
+    creditCost: 70
+    bagCapacityBonus: 0
+    grabRangeBonus: 0.25
+    icon: {fileID: 0}
+  - stage: 4
+    name: Heavy-Duty Collection Bag
+    description: +5 bag slots.
+    creditCost: 105
+    bagCapacityBonus: 5
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 5
+    name: Beach Cleaning Kit
+    description: +0.25m grabber reach.
+    creditCost: 140
+    bagCapacityBonus: 0
+    grabRangeBonus: 0.25
+    icon: {fileID: 0}
+  - stage: 6
+    name: Extended Litter Picker
+    description: +0.25m grabber reach.
+    creditCost: 185
+    bagCapacityBonus: 0
+    grabRangeBonus: 0.25
+    icon: {fileID: 0}
+  - stage: 7
+    name: Waterproof Boots
+    description: Another step toward protecting the open ocean!
+    creditCost: 230
+    bagCapacityBonus: 0
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 8
+    name: Explorer Backpack
+    description: +6 bag slots.
+    creditCost: 285
+    bagCapacityBonus: 6
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 9
+    name: Shoreline Collection Kit
+    description: +0.25m grabber reach, lets you haul heavy car tires.
+    creditCost: 350
+    bagCapacityBonus: 0
+    grabRangeBonus: 0.25
+    icon: {fileID: 0}
+  - stage: 10
+    name: Professional Beach Kit
+    description: +0.25m grabber reach.
+    creditCost: 415
+    bagCapacityBonus: 0
+    grabRangeBonus: 0.25
+    icon: {fileID: 0}
+  - stage: 11
+    name: Lightweight Wetsuit
+    description: Another step toward protecting the open ocean!
+    creditCost: 490
+    bagCapacityBonus: 0
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 12
+    name: Water-Resistant Gloves
+    description: Another step toward protecting the open ocean!
+    creditCost: 565
+    bagCapacityBonus: 0
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 13
+    name: Snorkel
+    description: Another step toward protecting the open ocean!
+    creditCost: 650
+    bagCapacityBonus: 0
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 14
+    name: Diving Mask and Fins
+    description: Another step toward protecting the open ocean!
+    creditCost: 745
+    bagCapacityBonus: 0
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 15
+    name: Shallow-Water Collection Bag
+    description: +8 bag slots.
+    creditCost: 840
+    bagCapacityBonus: 8
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 16
+    name: Advanced Snorkel Kit
+    description: +0.25m grabber reach.
+    creditCost: 945
+    bagCapacityBonus: 0
+    grabRangeBonus: 0.25
+    icon: {fileID: 0}
+  - stage: 17
+    name: Underwater Storage Bag
+    description: +8 bag slots.
+    creditCost: 1050
+    bagCapacityBonus: 8
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 18
+    name: Buoyancy Equipment
+    description: Another step toward protecting the open ocean!
+    creditCost: 1165
+    bagCapacityBonus: 0
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 19
+    name: Supervised Diving Equipment
+    description: Another step toward protecting the open ocean!
+    creditCost: 1290
+    bagCapacityBonus: 0
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 20
+    name: Underwater Cleanup Kit
+    description: +0.25m grabber reach.
+    creditCost: 1415
+    bagCapacityBonus: 0
+    grabRangeBonus: 0.25
+    icon: {fileID: 0}
+  - stage: 21
+    name: Basic Paddleboard
+    description: Another step toward protecting the open ocean!
+    creditCost: 1550
+    bagCapacityBonus: 0
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 22
+    name: Improved Paddleboard
+    description: Another step toward protecting the open ocean!
+    creditCost: 1685
+    bagCapacityBonus: 0
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 23
+    name: Waterproof Storage Container
+    description: +9 bag slots.
+    creditCost: 1830
+    bagCapacityBonus: 9
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 24
+    name: Paddleboard Collection Attachment
+    description: +0.25m grabber reach.
+    creditCost: 1985
+    bagCapacityBonus: 0
+    grabRangeBonus: 0.25
+    icon: {fileID: 0}
+  - stage: 25
+    name: Expedition Paddleboard
+    description: Another step toward protecting the open ocean!
+    creditCost: 2140
+    bagCapacityBonus: 0
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 26
+    name: Basic Kayak
+    description: Another step toward protecting the open ocean!
+    creditCost: 2305
+    bagCapacityBonus: 0
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 27
+    name: Improved Kayak Paddle
+    description: Another step toward protecting the open ocean!
+    creditCost: 2470
+    bagCapacityBonus: 0
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 28
+    name: Kayak Storage Compartment
+    description: +10 bag slots.
+    creditCost: 2645
+    bagCapacityBonus: 10
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 29
+    name: Kayak Collection Equipment
+    description: +0.25m grabber reach.
+    creditCost: 2830
+    bagCapacityBonus: 0
+    grabRangeBonus: 0.25
+    icon: {fileID: 0}
+  - stage: 30
+    name: Expedition Kayak
+    description: Another step toward protecting the open ocean!
+    creditCost: 3015
+    bagCapacityBonus: 0
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 31
+    name: Rowing Boat
+    description: +16 bag slots.
+    creditCost: 3210
+    bagCapacityBonus: 16
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 32
+    name: Improved Rowing Equipment
+    description: Another step toward protecting the open ocean!
+    creditCost: 3405
+    bagCapacityBonus: 0
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 33
+    name: Electric Boat Motor
+    description: +16 bag slots.
+    creditCost: 3610
+    bagCapacityBonus: 16
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 34
+    name: Marine Storage System
+    description: +11 bag slots.
+    creditCost: 3825
+    bagCapacityBonus: 11
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 35
+    name: Small Cleanup Vessel
+    description: +17 bag slots.
+    creditCost: 4040
+    bagCapacityBonus: 17
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 36
+    name: Professional Cleanup Boat
+    description: +17 bag slots.
+    creditCost: 4265
+    bagCapacityBonus: 17
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 37
+    name: Floating Debris Collection System
+    description: +0.25m grabber reach.
+    creditCost: 4490
+    bagCapacityBonus: 0
+    grabRangeBonus: 0.25
+    icon: {fileID: 0}
+  - stage: 38
+    name: Marine Monitoring Equipment
+    description: Another step toward protecting the open ocean!
+    creditCost: 4725
+    bagCapacityBonus: 0
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 39
+    name: Advanced Storage System
+    description: +12 bag slots.
+    creditCost: 4970
+    bagCapacityBonus: 12
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 40
+    name: Multi-Person Cleanup Vessel
+    description: +18 bag slots.
+    creditCost: 5215
+    bagCapacityBonus: 18
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 41
+    name: Offshore Support Vessel
+    description: +18 bag slots.
+    creditCost: 5470
+    bagCapacityBonus: 18
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 42
+    name: Advanced Collection Equipment
+    description: +0.25m grabber reach.
+    creditCost: 5725
+    bagCapacityBonus: 0
+    grabRangeBonus: 0.25
+    icon: {fileID: 0}
+  - stage: 43
+    name: Automated Sorting System
+    description: Another step toward protecting the open ocean!
+    creditCost: 5990
+    bagCapacityBonus: 0
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 44
+    name: Support Ship
+    description: +18 bag slots.
+    creditCost: 6265
+    bagCapacityBonus: 18
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 45
+    name: Offshore Cleanup Fleet
+    description: +19 bag slots.
+    creditCost: 6540
+    bagCapacityBonus: 19
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 46
+    name: Ocean Cleanup Platform
+    description: +19 bag slots.
+    creditCost: 6825
+    bagCapacityBonus: 19
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 47
+    name: Advanced Floating Collection System
+    description: +0.25m grabber reach.
+    creditCost: 7110
+    bagCapacityBonus: 0
+    grabRangeBonus: 0.25
+    icon: {fileID: 0}
+  - stage: 48
+    name: Industrial Recycling Facility
+    description: Another step toward protecting the open ocean!
+    creditCost: 7405
+    bagCapacityBonus: 0
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 49
+    name: Global Cleanup Fleet
+    description: +19 bag slots.
+    creditCost: 7710
+    bagCapacityBonus: 19
+    grabRangeBonus: 0
+    icon: {fileID: 0}
+  - stage: 50
+    name: Ocean Guardians Mega System
+    description: +20 bag slots.
+    creditCost: 8015
+    bagCapacityBonus: 20
+    grabRangeBonus: 0
+    icon: {fileID: 0}
