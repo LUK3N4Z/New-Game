@@ -20,6 +20,8 @@ using OceanGuardians.Player;
 using OceanGuardians.Progression;
 using OceanGuardians.UI;
 using OceanGuardians.Quests;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 namespace OceanGuardians.EditorTools
 {
@@ -38,6 +40,7 @@ namespace OceanGuardians.EditorTools
         const string PrefabDir = Root + "/Prefabs";
         const string SceneDir = Root + "/Scenes";
         const string ScenePath = SceneDir + "/Beach_Greybox.unity";
+        const string ArtDir = Root + "/Art";
 
         static Material fxMaterial, glintMaterial, glintFindMaterial;
         static Sprite roundSprite, panelSprite;
@@ -47,7 +50,7 @@ namespace OceanGuardians.EditorTools
         {
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
             if (!TmpEssentialsReady()) return; // Build re-runs itself once the import finishes
-            foreach (var dir in new[] { DataDir, MatDir, PrefabDir, SceneDir }) Directory.CreateDirectory(dir);
+            foreach (var dir in new[] { DataDir, MatDir, PrefabDir, SceneDir, ArtDir + "/Characters/Coral", ArtDir + "/Environment", ArtDir + "/Items", ArtDir + "/Creatures", ArtDir + "/Shaders" }) Directory.CreateDirectory(dir);
             AssetDatabase.Refresh();
 
             roundSprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Knob.psd");
@@ -77,7 +80,12 @@ namespace OceanGuardians.EditorTools
             AssetDatabase.CreateAsset(navSurface.navMeshData, SceneDir + "/Beach_NavMesh.asset");
 
             // ---------- Things that shouldn't carve the NavMesh ----------
-            var water = Prim(PrimitiveType.Plane, "Water", null, new Vector3(0f, -0.15f, 45f), new Vector3(8f, 1f, 4f), Mat("Water", new Color(0.2f, 0.4f, 0.42f)));
+            var water = Prim(PrimitiveType.Plane, "Water", null, new Vector3(0f, -0.15f, 45f), new Vector3(8f, 1f, 4f), WaterMaterial());
+            water.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            // Sloped seabed under the shallows so the water shader's depth ramp/foam have real depth to read.
+            var seabed = Prim(PrimitiveType.Plane, "Seabed", null, new Vector3(0f, -1.7f, 42f), new Vector3(8f, 1f, 4f), Mat("Seabed", new Color(0.72f, 0.64f, 0.48f)));
+            seabed.transform.rotation = Quaternion.Euler(4.5f, 0f, 0f); // rises toward the shore
+            Object.DestroyImmediate(seabed.GetComponent<Collider>());
             Object.DestroyImmediate(water.GetComponent<Collider>()); // clicks on water shouldn't count as ground
             BuildWaves();
             foreach (var pos in new[] { new Vector3(-7f, 0f, 21f), new Vector3(13f, 0f, 20f) })
@@ -121,6 +129,7 @@ namespace OceanGuardians.EditorTools
             var cove = new GameObject("QuestArea_WildlifeCove") { transform = { position = seal.transform.position } };
             Wire(cove.AddComponent<QuestAreaTrigger>(), ("areaId", "wildlife_cove"), ("radius", 6f), ("player", player.transform));
 
+            BuildPostProcessing(cam, sun);
             new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule)).GetComponent<InputSystemUIInputModule>().AssignDefaultActions();
             BuildHud(cam, player.transform, kiosk.transform, seal.transform);
 
@@ -245,19 +254,60 @@ namespace OceanGuardians.EditorTools
         {
             var root = new GameObject("Coral");
             root.transform.position = pos;
-            // Chibi greybox: big head, auburn curls, teal cap, round glasses, explorer backpack.
-            Prim(PrimitiveType.Capsule, "Body", root.transform, new Vector3(0f, 0.5f, 0f), new Vector3(0.65f, 0.5f, 0.6f), Mat("Coral_Shirt", new Color(0.2f, 0.65f, 0.7f)));
-            Prim(PrimitiveType.Sphere, "Head", root.transform, new Vector3(0f, 1.25f, 0f), Vector3.one * 0.62f, Mat("Coral_Skin", new Color(1f, 0.85f, 0.72f)));
-            Prim(PrimitiveType.Sphere, "Hair", root.transform, new Vector3(0f, 1.35f, -0.08f), new Vector3(0.82f, 0.7f, 0.78f), Mat("Coral_Hair", new Color(0.65f, 0.22f, 0.12f)));
-            Prim(PrimitiveType.Cylinder, "Cap", root.transform, new Vector3(0f, 1.62f, 0.04f), new Vector3(0.66f, 0.05f, 0.66f), Mat("Coral_Cap", new Color(0.1f, 0.7f, 0.68f)));
-            Prim(PrimitiveType.Cube, "Glasses", root.transform, new Vector3(0f, 1.27f, 0.3f), new Vector3(0.42f, 0.1f, 0.04f), Mat("Coral_Glasses", new Color(0.15f, 0.15f, 0.2f)));
-            Prim(PrimitiveType.Cube, "Backpack", root.transform, new Vector3(0f, 0.6f, -0.36f), new Vector3(0.45f, 0.5f, 0.22f), Mat("Coral_Backpack", new Color(0.75f, 0.6f, 0.35f)));
-            // Group the greybox parts under "Visual" so ProceduralAnimator can bob them without moving the agent.
+            // Phase 6 stylized Coral (character bible): auburn curl clusters, round glasses with
+            // catchlit eyes, wave explorer cap, explorer vest, yellow gloves, notebook on her pack.
+            // Everything hangs off "Visual" so ProceduralAnimator bobs/squashes the whole model.
             var visual = new GameObject("Visual").transform;
             visual.SetParent(root.transform, false);
-            var parts = new List<Transform>();
-            foreach (Transform child in root.transform) if (child != visual) parts.Add(child);
-            foreach (var part in parts) part.SetParent(visual, true);
+            var skin = Mat("Coral_Skin", new Color(1f, 0.85f, 0.72f));
+            var hairMat = Mat("Coral_Hair", new Color(0.72f, 0.3f, 0.12f));
+            var shirtMat = Mat("Coral_Shirt", new Color(0.15f, 0.72f, 0.7f));
+            var vestMat = Mat("Coral_Vest", new Color(0.98f, 0.75f, 0.3f));
+            var darkMat = Mat("Coral_Glasses", new Color(0.15f, 0.15f, 0.2f));
+            var whiteMat = Mat("Coral_White", Color.white);
+            var gloveMat = Mat("Coral_Gloves", new Color(1f, 0.8f, 0.15f));
+            foreach (var x in new[] { -0.15f, 0.15f })
+                Prim(PrimitiveType.Cylinder, "Leg", visual, new Vector3(x, 0.24f, 0f), new Vector3(0.16f, 0.22f, 0.16f), skin);
+            Prim(PrimitiveType.Cube, "Shorts", visual, new Vector3(0f, 0.48f, 0f), new Vector3(0.5f, 0.26f, 0.42f), Mat("Coral_Shorts", new Color(0.25f, 0.4f, 0.75f)));
+            Prim(PrimitiveType.Capsule, "Body", visual, new Vector3(0f, 0.78f, 0f), new Vector3(0.62f, 0.42f, 0.56f), shirtMat);
+            Prim(PrimitiveType.Cube, "Vest", visual, new Vector3(0f, 0.82f, 0.1f), new Vector3(0.52f, 0.42f, 0.42f), vestMat);
+            foreach (var side in new[] { -1f, 1f })
+            {
+                var sleeve = Prim(PrimitiveType.Cylinder, "Sleeve", visual, new Vector3(side * 0.36f, 0.92f, 0f), new Vector3(0.17f, 0.14f, 0.17f), whiteMat);
+                sleeve.transform.localRotation = Quaternion.Euler(0f, 0f, side * 18f);
+                var arm = Prim(PrimitiveType.Cylinder, "Arm", visual, new Vector3(side * 0.42f, 0.74f, 0.02f), new Vector3(0.12f, 0.2f, 0.12f), skin);
+                arm.transform.localRotation = Quaternion.Euler(0f, 0f, side * 14f);
+                Prim(PrimitiveType.Sphere, "Glove", visual, new Vector3(side * 0.47f, 0.54f, 0.04f), Vector3.one * 0.17f, gloveMat);
+            }
+            Prim(PrimitiveType.Sphere, "Head", visual, new Vector3(0f, 1.32f, 0f), Vector3.one * 0.64f, skin);
+            foreach (var side in new[] { -1f, 1f })
+            {
+                Prim(PrimitiveType.Sphere, "EyeWhite", visual, new Vector3(side * 0.16f, 1.36f, 0.26f), new Vector3(0.17f, 0.21f, 0.1f), whiteMat);
+                Prim(PrimitiveType.Sphere, "Pupil", visual, new Vector3(side * 0.16f, 1.35f, 0.31f), Vector3.one * 0.085f, darkMat);
+                Prim(PrimitiveType.Sphere, "Catchlight", visual, new Vector3(side * 0.135f, 1.4f, 0.34f), Vector3.one * 0.03f, whiteMat);
+                Prim(PrimitiveType.Sphere, "Cheek", visual, new Vector3(side * 0.23f, 1.22f, 0.24f), new Vector3(0.13f, 0.08f, 0.05f), Mat("Coral_Cheek", new Color(1f, 0.62f, 0.55f)));
+            }
+            Prim(PrimitiveType.Sphere, "Nose", visual, new Vector3(0f, 1.28f, 0.32f), Vector3.one * 0.055f, skin);
+            Prim(PrimitiveType.Sphere, "Mouth", visual, new Vector3(0f, 1.18f, 0.29f), new Vector3(0.14f, 0.05f, 0.05f), Mat("Coral_Mouth", new Color(0.55f, 0.25f, 0.2f)));
+            var glassesMesh = MeshAsset("Characters/Coral", "GlassesRing", () => Torus(0.115f, 0.014f, 20));
+            foreach (var side in new[] { -1f, 1f })
+            {
+                MeshPrim(glassesMesh, "GlassesRing", visual, new Vector3(side * 0.16f, 1.36f, 0.3f), Vector3.one, darkMat).transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                var temple = Prim(PrimitiveType.Cylinder, "GlassesTemple", visual, new Vector3(side * 0.3f, 1.38f, 0.14f), new Vector3(0.025f, 0.16f, 0.025f), darkMat);
+                temple.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            }
+            var bridge = Prim(PrimitiveType.Cylinder, "GlassesBridge", visual, new Vector3(0f, 1.38f, 0.3f), new Vector3(0.025f, 0.08f, 0.025f), darkMat);
+            bridge.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+            Prim(PrimitiveType.Sphere, "HairTop", visual, new Vector3(0f, 1.56f, -0.05f), new Vector3(0.72f, 0.5f, 0.7f), hairMat);
+            Prim(PrimitiveType.Sphere, "HairBack", visual, new Vector3(0f, 1.34f, -0.24f), new Vector3(0.66f, 0.62f, 0.4f), hairMat);
+            foreach (var (x, y, z, s) in new[] { (-0.3f, 1.5f, 0.14f, 0.26f), (0.3f, 1.5f, 0.14f, 0.26f), (0f, 1.58f, 0.2f, 0.24f), (-0.34f, 1.28f, 0.05f, 0.24f), (0.34f, 1.28f, 0.05f, 0.24f), (-0.2f, 1.66f, -0.02f, 0.22f), (0.2f, 1.66f, -0.02f, 0.22f) })
+                Prim(PrimitiveType.Sphere, "HairCurl", visual, new Vector3(x, y, z), Vector3.one * s, hairMat);
+            Prim(PrimitiveType.Sphere, "CapDome", visual, new Vector3(0f, 1.64f, -0.03f), new Vector3(0.6f, 0.32f, 0.6f), Mat("Coral_Cap", new Color(0.1f, 0.7f, 0.68f)));
+            Prim(PrimitiveType.Cube, "CapPanel", visual, new Vector3(0f, 1.62f, 0.24f), new Vector3(0.3f, 0.2f, 0.08f), whiteMat);
+            Prim(PrimitiveType.Cylinder, "CapBill", visual, new Vector3(0f, 1.54f, 0.36f), new Vector3(0.52f, 0.03f, 0.34f), Mat("Coral_Cap", Color.white));
+            Prim(PrimitiveType.Cylinder, "WaveLogo", visual, new Vector3(0f, 1.62f, 0.29f), new Vector3(0.13f, 0.02f, 0.13f), Mat("Coral_Cap", Color.white)).transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            var backpackRoot = Prim(PrimitiveType.Cube, "Backpack", visual, new Vector3(0f, 0.82f, -0.34f), new Vector3(0.46f, 0.52f, 0.24f), Mat("Coral_Backpack", new Color(0.75f, 0.6f, 0.35f)));
+            Prim(PrimitiveType.Cube, "Notebook", backpackRoot.transform, new Vector3(0.55f, 0f, 0f), new Vector3(0.1f, 0.6f, 0.75f), Mat("Coral_Notebook", new Color(0.95f, 0.5f, 0.35f)));
             foreach (var c in root.GetComponentsInChildren<Collider>()) Object.DestroyImmediate(c); // clicks pass through Coral
             var tong = Prim(PrimitiveType.Cylinder, "GrabberTong", root.transform, new Vector3(0.35f, 0.65f, 0.25f), new Vector3(0.05f, 0.4f, 0.05f), Mat("Coral_Cap", Color.white));
             Object.DestroyImmediate(tong.GetComponent<Collider>());
@@ -375,32 +425,100 @@ namespace OceanGuardians.EditorTools
 
         static GameObject BuildKiosk(Vector3 pos)
         {
+            // Phase 6 stylized kiosk: timber shelter, sloped green shake roof, three rounded
+            // color-coded bins with pictogram discs, recycle signboard + upgrade notice board.
             var root = new GameObject("RecyclingKiosk");
             root.transform.position = pos;
-            Prim(PrimitiveType.Cube, "Base", root.transform, new Vector3(0f, 0.1f, 0f), new Vector3(3.3f, 0.2f, 1.4f), Mat("Kiosk_Base", new Color(0.9f, 0.9f, 0.88f)));
-            Prim(PrimitiveType.Cube, "Bin_Blue_Plastics", root.transform, new Vector3(-1.05f, 0.75f, 0f), new Vector3(0.9f, 1.1f, 0.9f), Mat("Bin_Blue", new Color(0.2f, 0.5f, 0.95f)));
-            Prim(PrimitiveType.Cube, "Bin_Green_Metals", root.transform, new Vector3(0f, 0.75f, 0f), new Vector3(0.9f, 1.1f, 0.9f), Mat("Bin_Green", new Color(0.25f, 0.75f, 0.3f)));
-            Prim(PrimitiveType.Cube, "Bin_Yellow_Paper", root.transform, new Vector3(1.05f, 0.75f, 0f), new Vector3(0.9f, 1.1f, 0.9f), Mat("Bin_Yellow", new Color(1f, 0.82f, 0.2f)));
-            Prim(PrimitiveType.Cube, "Sign", root.transform, new Vector3(0f, 2.2f, -0.3f), new Vector3(2.6f, 0.7f, 0.1f), Mat("Kiosk_Sign", new Color(0.1f, 0.6f, 0.6f)));
-            Prim(PrimitiveType.Cylinder, "SignPost", root.transform, new Vector3(0f, 1.4f, -0.3f), new Vector3(0.12f, 0.7f, 0.12f), Mat("Kiosk_Base", Color.white));
+            var wood = Mat("Kiosk_Wood", new Color(0.55f, 0.38f, 0.22f));
+            var woodDark = Mat("Kiosk_WoodDark", new Color(0.42f, 0.28f, 0.16f));
+            Prim(PrimitiveType.Cube, "Deck", root.transform, new Vector3(0f, 0.09f, 0.2f), new Vector3(4f, 0.18f, 2.2f), woodDark);
+            foreach (var (x, z) in new[] { (-1.8f, 0.9f), (1.8f, 0.9f), (-1.8f, -0.6f), (1.8f, -0.6f) })
+                Prim(PrimitiveType.Cylinder, "Post", root.transform, new Vector3(x, 1.5f, z), new Vector3(0.16f, 1.5f, 0.16f), wood);
+            var roofMat = Mat("Kiosk_Roof", new Color(0.25f, 0.6f, 0.4f));
+            var roofL = Prim(PrimitiveType.Cube, "RoofLeft", root.transform, new Vector3(-1.05f, 3.15f, 0.15f), new Vector3(2.5f, 0.14f, 2.7f), roofMat);
+            roofL.transform.localRotation = Quaternion.Euler(0f, 0f, 16f);
+            var roofR = Prim(PrimitiveType.Cube, "RoofRight", root.transform, new Vector3(1.05f, 3.15f, 0.15f), new Vector3(2.5f, 0.14f, 2.7f), roofMat);
+            roofR.transform.localRotation = Quaternion.Euler(0f, 0f, -16f);
+            Prim(PrimitiveType.Cylinder, "RoofRidge", root.transform, new Vector3(0f, 3.5f, 0.15f), new Vector3(0.14f, 1.35f, 0.14f), woodDark).transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+
+            void Bin(string name, float x, Color color, string iconKind)
+            {
+                var bin = new GameObject(name);
+                bin.transform.SetParent(root.transform, false);
+                bin.transform.localPosition = new Vector3(x, 0f, -0.35f);
+                var binMat = Mat(name, color);
+                Prim(PrimitiveType.Cylinder, "Body", bin.transform, new Vector3(0f, 0.72f, 0f), new Vector3(0.86f, 0.55f, 0.86f), binMat);
+                Prim(PrimitiveType.Sphere, "RoundBottom", bin.transform, new Vector3(0f, 0.24f, 0f), new Vector3(0.86f, 0.4f, 0.86f), binMat);
+                Prim(PrimitiveType.Cylinder, "Lid", bin.transform, new Vector3(0f, 1.32f, 0f), new Vector3(0.94f, 0.1f, 0.94f), Mat(name + "Lid", color * 0.78f));
+                Prim(PrimitiveType.Sphere, "Knob", bin.transform, new Vector3(0f, 1.42f, 0f), Vector3.one * 0.13f, woodDark);
+                // White pictogram disc + tiny icon shape
+                Prim(PrimitiveType.Cylinder, "IconDisc", bin.transform, new Vector3(0f, 0.85f, -0.45f), new Vector3(0.42f, 0.03f, 0.42f), Mat("Coral_White", Color.white)).transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                if (iconKind == "bottle") Prim(PrimitiveType.Cylinder, "Icon", bin.transform, new Vector3(0f, 0.85f, -0.48f), new Vector3(0.09f, 0.13f, 0.09f), binMat);
+                else if (iconKind == "can") Prim(PrimitiveType.Cylinder, "Icon", bin.transform, new Vector3(0f, 0.85f, -0.48f), new Vector3(0.13f, 0.09f, 0.13f), MetalMat("CanSilver", new Color(0.8f, 0.82f, 0.85f)));
+                else Prim(PrimitiveType.Cube, "Icon", bin.transform, new Vector3(0f, 0.85f, -0.48f), new Vector3(0.2f, 0.15f, 0.04f), Mat("PaperIcon", new Color(0.85f, 0.7f, 0.45f)));
+            }
+            Bin("Bin_Blue", -1.2f, new Color(0.2f, 0.5f, 0.95f), "bottle");
+            Bin("Bin_Green", 0f, new Color(0.25f, 0.75f, 0.3f), "can");
+            Bin("Bin_Yellow", 1.2f, new Color(1f, 0.82f, 0.2f), "paper");
+
+            var sign = Prim(PrimitiveType.Cube, "Signboard", root.transform, new Vector3(0f, 2.55f, -1.05f), new Vector3(2.8f, 0.7f, 0.1f), wood);
+            Object.DestroyImmediate(sign.GetComponent<Collider>());
+            SignText(root.transform, new Vector3(0f, 2.55f, -1.12f), "RECYCLE!", 1.5f, Color.white);
+            var notice = Prim(PrimitiveType.Cube, "NoticeBoard", root.transform, new Vector3(1.95f, 1.5f, -0.9f), new Vector3(0.9f, 1.1f, 0.08f), woodDark);
+            Object.DestroyImmediate(notice.GetComponent<Collider>());
+            SignText(root.transform, new Vector3(1.95f, 1.5f, -0.97f), "Upgrades\nsold here!", 0.55f, new Color(1f, 0.95f, 0.8f));
             root.AddComponent<RecyclingKiosk>();
             return root;
         }
 
+        /// <summary>Small world-space TMP label used by signposts and boards.</summary>
+        static void SignText(Transform parent, Vector3 localPos, string text, float size, Color color)
+        {
+            var go = new GameObject("SignText", typeof(TextMeshPro));
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = localPos;
+            var tmp = go.GetComponent<TextMeshPro>();
+            tmp.text = text;
+            tmp.fontSize = size;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.color = color;
+        }
         static GameObject BuildSeal(Vector3 pos)
         {
             var root = new GameObject("SealPup_Rescue");
             root.transform.position = pos;
             var visual = new GameObject("Visual").transform;
             visual.SetParent(root.transform, false);
-            Prim(PrimitiveType.Capsule, "Body", visual, new Vector3(0f, 0.3f, 0f), new Vector3(0.6f, 0.5f, 0.6f), Mat("Seal", new Color(0.62f, 0.62f, 0.66f))).transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            Prim(PrimitiveType.Sphere, "Head", visual, new Vector3(0f, 0.45f, 0.5f), Vector3.one * 0.45f, Mat("Seal", Color.gray));
-
+            // Phase 6 stylized seal pup: rounded mottled body, big soulful eyes, tiny flippers.
+            var sealMat = Mat("Seal", new Color(0.66f, 0.68f, 0.72f));
+            var sealDark = Mat("Seal_Spots", new Color(0.45f, 0.47f, 0.52f));
+            var sealBelly = Mat("Seal_Belly", new Color(0.88f, 0.9f, 0.92f));
+            Prim(PrimitiveType.Sphere, "Body", visual, new Vector3(0f, 0.3f, -0.08f), new Vector3(0.62f, 0.48f, 1.02f), sealMat);
+            Prim(PrimitiveType.Sphere, "Belly", visual, new Vector3(0f, 0.2f, 0.12f), new Vector3(0.5f, 0.34f, 0.8f), sealBelly);
+            foreach (var (x, y, z) in new[] { (-0.16f, 0.5f, -0.25f), (0.14f, 0.52f, 0.02f), (-0.05f, 0.48f, -0.5f) })
+                Prim(PrimitiveType.Sphere, "Spot", visual, new Vector3(x, y, z), new Vector3(0.18f, 0.08f, 0.22f), sealDark);
+            Prim(PrimitiveType.Sphere, "Head", visual, new Vector3(0f, 0.48f, 0.48f), Vector3.one * 0.44f, sealMat);
+            Prim(PrimitiveType.Sphere, "Muzzle", visual, new Vector3(0f, 0.42f, 0.68f), new Vector3(0.22f, 0.16f, 0.16f), sealBelly);
+            Prim(PrimitiveType.Sphere, "Nose", visual, new Vector3(0f, 0.47f, 0.75f), Vector3.one * 0.07f, Mat("Seal_Nose", new Color(0.2f, 0.16f, 0.18f)));
+            foreach (var side in new[] { -1f, 1f })
+            {
+                Prim(PrimitiveType.Sphere, "Eye", visual, new Vector3(side * 0.13f, 0.56f, 0.65f), Vector3.one * 0.095f, Mat("Seal_Nose", Color.black));
+                Prim(PrimitiveType.Sphere, "EyeGlint", visual, new Vector3(side * 0.11f, 0.6f, 0.72f), Vector3.one * 0.028f, Mat("Coral_White", Color.white));
+                var flipper = Prim(PrimitiveType.Sphere, "Flipper", visual, new Vector3(side * 0.36f, 0.16f, 0.28f), new Vector3(0.22f, 0.08f, 0.36f), sealDark);
+                flipper.transform.localRotation = Quaternion.Euler(0f, side * 25f, side * 12f);
+                var tail = Prim(PrimitiveType.Sphere, "TailFlipper", visual, new Vector3(side * 0.12f, 0.18f, -0.62f), new Vector3(0.2f, 0.07f, 0.3f), sealDark);
+                tail.transform.localRotation = Quaternion.Euler(0f, side * -30f, 0f);
+            }
+            // Tangled ghost net draped over the pup (disabled by the Tender Care sequence).
             var net = new GameObject("GhostNet").transform;
             net.SetParent(root.transform, false);
-            var netMat = Mat("GhostNet", new Color(0.25f, 0.45f, 0.3f));
-            for (int i = 0; i < 4; i++)
-                Prim(PrimitiveType.Cylinder, "Strand", net, new Vector3(0f, 0.35f, -0.2f + i * 0.2f), new Vector3(0.03f, 0.45f, 0.03f), netMat).transform.localRotation = Quaternion.Euler(0f, 0f, 90f + (i % 2 == 0 ? 25f : -25f));
+            var netMat = Mat("GhostNet", new Color(0.2f, 0.55f, 0.45f));
+            var netMesh = MeshAsset("Creatures", "GhostNetRing", () => Torus(0.34f, 0.035f, 14));
+            foreach (var (z, tilt) in new[] { (-0.25f, 12f), (0f, -8f), (0.22f, 18f) })
+                MeshPrim(netMesh, "NetRing", net, new Vector3(0f, 0.34f, z), Vector3.one, netMat).transform.localRotation = Quaternion.Euler(tilt, 20f, 0f);
+            for (int i = 0; i < 3; i++)
+                Prim(PrimitiveType.Cylinder, "Strand", net, new Vector3(0f, 0.4f, -0.2f + i * 0.2f), new Vector3(0.03f, 0.45f, 0.03f), netMat).transform.localRotation = Quaternion.Euler(0f, 0f, 90f + (i % 2 == 0 ? 25f : -25f));
+            Prim(PrimitiveType.Sphere, "NetBuoy", net, new Vector3(0.3f, 0.5f, -0.1f), Vector3.one * 0.11f, Mat("BuoyOrange", new Color(1f, 0.5f, 0.15f)));
             foreach (var c in root.GetComponentsInChildren<Collider>()) Object.DestroyImmediate(c);
 
             var aura = new GameObject("CareAura");
@@ -433,6 +551,21 @@ namespace OceanGuardians.EditorTools
             var sideR = Prim(PrimitiveType.Cube, "TentRight", root.transform, new Vector3(0.85f, 0.95f, 0f), new Vector3(0.12f, 2.2f, 2.6f), tentMat);
             sideR.transform.localRotation = Quaternion.Euler(0f, 0f, -42f);
             Prim(PrimitiveType.Cube, "TentBack", root.transform, new Vector3(0f, 0.8f, -1.25f), new Vector3(1.9f, 1.7f, 0.12f), tentMat);
+            // Phase 6 camp dressing: door flap + warm interior lantern (fades on at dusk with the campfire).
+            var flap = Prim(PrimitiveType.Cube, "TentFlap", root.transform, new Vector3(0.45f, 0.75f, 1.28f), new Vector3(0.8f, 1.4f, 0.08f), Mat("Tent_Flap", new Color(0.85f, 0.45f, 0.2f)));
+            flap.transform.localRotation = Quaternion.Euler(0f, -28f, 0f);
+            Object.DestroyImmediate(flap.GetComponent<Collider>());
+            var lanternGo = new GameObject("TentLantern");
+            lanternGo.transform.SetParent(root.transform, false);
+            lanternGo.transform.localPosition = new Vector3(0f, 1f, 0.6f);
+            var lanternLight = lanternGo.AddComponent<Light>();
+            lanternLight.type = LightType.Point;
+            lanternLight.color = new Color(1f, 0.75f, 0.45f);
+            lanternLight.range = 6f;
+            lanternLight.intensity = 0f;
+            var lanternBulb = Prim(PrimitiveType.Sphere, "LanternBulb", root.transform, new Vector3(0f, 1f, 1.15f), Vector3.one * 0.12f, Mat("LanternGlow", new Color(1f, 0.85f, 0.55f)));
+            lanternBulb.GetComponent<Renderer>().sharedMaterial.EnableKeyword("_EMISSION");
+            Object.DestroyImmediate(lanternBulb.GetComponent<Collider>());
             var tentHit = new GameObject("BaseCampTent");
             tentHit.transform.SetParent(root.transform, false);
             tentHit.transform.localPosition = new Vector3(0f, 0.8f, 0f);
@@ -464,7 +597,29 @@ namespace OceanGuardians.EditorTools
             Object.DestroyImmediate(Prim(PrimitiveType.Cube, "BenchLegs", benchRoot.transform, new Vector3(0f, 0.4f, 0f), new Vector3(1.8f, 0.8f, 0.8f), tableMat).GetComponent<Collider>());
             Object.DestroyImmediate(Prim(PrimitiveType.Sphere, "BenchDecor", benchRoot.transform, new Vector3(-0.5f, 1.05f, 0f), Vector3.one * 0.3f, Mat("Coral_Cap", Color.white)).GetComponent<Collider>());
             WireArray(benchRoot.AddComponent<Crafting.CraftingWorkbench>(), "recipes", CreateRecipeAssets(data).Select(r => (Object)r).ToArray());
-            return new[] { fireLight };
+            // Recycled tool dressing on the bench: hammer + tool pots.
+            var hammerHandle = Prim(PrimitiveType.Cylinder, "HammerHandle", benchRoot.transform, new Vector3(0.5f, 1f, 0f), new Vector3(0.05f, 0.22f, 0.05f), tableMat);
+            hammerHandle.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+            Object.DestroyImmediate(hammerHandle.GetComponent<Collider>());
+            var hammerHead = Prim(PrimitiveType.Cube, "HammerHead", benchRoot.transform, new Vector3(0.72f, 1.02f, 0f), new Vector3(0.1f, 0.1f, 0.22f), MetalMat("CanSilver", Color.white));
+            Object.DestroyImmediate(hammerHead.GetComponent<Collider>());
+            foreach (var px in new[] { -0.8f, -0.55f })
+            {
+                var pot = Prim(PrimitiveType.Cylinder, "ToolPot", benchRoot.transform, new Vector3(px, 1.05f, -0.25f), new Vector3(0.16f, 0.14f, 0.16f), Mat("Bin_Green", Color.white));
+                Object.DestroyImmediate(pot.GetComponent<Collider>());
+            }
+            // Campfire dressing: crossed logs + glowing embers under the flame particles.
+            foreach (var rot in new[] { 25f, 115f })
+            {
+                var logGo = Prim(PrimitiveType.Cylinder, "FireLog", root.transform, firePos + Vector3.up * 0.16f, new Vector3(0.09f, 0.34f, 0.09f), tableMat);
+                logGo.transform.localRotation = Quaternion.Euler(90f, rot, 0f);
+                Object.DestroyImmediate(logGo.GetComponent<Collider>());
+            }
+            var ember = Prim(PrimitiveType.Sphere, "Embers", root.transform, firePos + Vector3.up * 0.14f, new Vector3(0.3f, 0.12f, 0.3f), Mat("EmberGlow", new Color(1f, 0.45f, 0.15f)));
+            ember.GetComponent<Renderer>().sharedMaterial.EnableKeyword("_EMISSION");
+            ember.GetComponent<Renderer>().sharedMaterial.SetColor("_EmissionColor", new Color(1f, 0.4f, 0.1f) * 1.6f);
+            Object.DestroyImmediate(ember.GetComponent<Collider>());
+            return new[] { fireLight, lanternLight };
         }
 
         /// <summary>"The Rocky Passage": two bluffs, a spanning arch rock, driftwood barricade, wooden signpost.</summary>
@@ -476,6 +631,19 @@ namespace OceanGuardians.EditorTools
             Object.DestroyImmediate(Prim(PrimitiveType.Cube, "BluffLeft", root.transform, new Vector3(-3.4f, 3.5f, 0f), new Vector3(3.5f, 7f, 3.5f), rock).GetComponent<Collider>());
             Object.DestroyImmediate(Prim(PrimitiveType.Cube, "BluffRight", root.transform, new Vector3(3.4f, 3.5f, 0f), new Vector3(3.5f, 7f, 3.5f), rock).GetComponent<Collider>());
             Object.DestroyImmediate(Prim(PrimitiveType.Cube, "ArchRock", root.transform, new Vector3(0f, 6.4f, 0f), new Vector3(8f, 1.8f, 3.4f), rock).GetComponent<Collider>());
+            // Phase 6: weathered driftwood archway in front of the rock arch + coastal boulders.
+            var driftMat = Mat("Gate_Driftwood", new Color(0.62f, 0.52f, 0.4f));
+            foreach (var side in new[] { -1f, 1f })
+            {
+                var post = Prim(PrimitiveType.Cylinder, "ArchPost", root.transform, new Vector3(side * 1.9f, 1.7f, -2.2f), new Vector3(0.22f, 1.8f, 0.22f), driftMat);
+                post.transform.localRotation = Quaternion.Euler(4f, 0f, side * 7f);
+                Object.DestroyImmediate(post.GetComponent<Collider>());
+                var boulder2 = Prim(PrimitiveType.Sphere, "GateBoulder", root.transform, new Vector3(side * 2.6f, 0.4f, -2.4f), new Vector3(0.9f, 0.7f, 0.9f), rock);
+                Object.DestroyImmediate(boulder2.GetComponent<Collider>());
+            }
+            var crossbar = Prim(PrimitiveType.Cylinder, "ArchCrossbar", root.transform, new Vector3(0f, 3.5f, -2.2f), new Vector3(0.18f, 2.2f, 0.18f), driftMat);
+            crossbar.transform.localRotation = Quaternion.Euler(0f, 0f, 88f);
+            Object.DestroyImmediate(crossbar.GetComponent<Collider>());
 
             var blockage = new GameObject("Blockage");
             blockage.transform.SetParent(root.transform, false);
@@ -490,12 +658,12 @@ namespace OceanGuardians.EditorTools
             Object.DestroyImmediate(boulder.GetComponent<Collider>());
 
             var signMat = Mat("Workbench", Color.white);
-            Object.DestroyImmediate(Prim(PrimitiveType.Cylinder, "SignPost", root.transform, new Vector3(-2.2f, 0.9f, 1.6f), new Vector3(0.12f, 0.9f, 0.12f), signMat).GetComponent<Collider>());
-            var board = Prim(PrimitiveType.Cube, "SignBoard", root.transform, new Vector3(-2.2f, 1.7f, 1.6f), new Vector3(2.2f, 0.55f, 0.1f), signMat);
+            Object.DestroyImmediate(Prim(PrimitiveType.Cylinder, "SignPost", root.transform, new Vector3(-2.2f, 0.9f, -1.6f), new Vector3(0.12f, 0.9f, 0.12f), signMat).GetComponent<Collider>());
+            var board = Prim(PrimitiveType.Cube, "SignBoard", root.transform, new Vector3(-2.2f, 1.7f, -1.6f), new Vector3(2.2f, 0.55f, 0.1f), signMat);
             Object.DestroyImmediate(board.GetComponent<Collider>());
             var signText = new GameObject("SignText", typeof(TextMeshPro));
             signText.transform.SetParent(root.transform, false);
-            signText.transform.localPosition = new Vector3(-2.2f, 1.7f, 1.67f);
+            signText.transform.localPosition = new Vector3(-2.2f, 1.7f, -1.67f);
             var tmp = signText.GetComponent<TextMeshPro>();
             tmp.text = "To Region 2:\nRocky Shore ->";
             tmp.fontSize = 0.55f; tmp.alignment = TextAlignmentOptions.Center;
@@ -504,6 +672,114 @@ namespace OceanGuardians.EditorTools
             var hit = root.AddComponent<SphereCollider>();
             hit.radius = 2.6f; hit.center = new Vector3(0f, 1.2f, 0f);
             Wire(root.AddComponent<RegionGate>(), ("blockage", blockage));
+        }
+
+        /// <summary>Phase 6 stylized pickup models. Visual only; the tap collider + glint stay on the root.</summary>
+        static void BuildItemVisual(ItemData item, Transform parent, int index)
+        {
+            var vis = new GameObject("Visual").transform;
+            vis.SetParent(parent, false);
+            switch (item.Id)
+            {
+                case "plastic_bottle":
+                {
+                    var bottle = MeshPrim(MeshAsset("Items", "PlasticBottle", () => Bottle(0.09f, 0.42f)), "Bottle", vis, new Vector3(0f, 0.1f, 0f), Vector3.one, GlassMat("Item_BottlePET", new Color(0.55f, 0.8f, 1f), 0.5f));
+                    bottle.transform.localRotation = Quaternion.Euler(0f, 0f, 90f); // washed up on its side
+                    var cap = Prim(PrimitiveType.Cylinder, "Cap", vis, new Vector3(0.22f, 0.1f, 0f), new Vector3(0.07f, 0.04f, 0.07f), Mat("Coral_White", Color.white));
+                    cap.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+                    Object.DestroyImmediate(cap.GetComponent<Collider>());
+                    break;
+                }
+                case "soda_can":
+                {
+                    var canMat = MetalMat(index % 2 == 0 ? "Item_CanRed" : "Item_CanBlue", index % 2 == 0 ? new Color(0.9f, 0.25f, 0.2f) : new Color(0.2f, 0.4f, 0.95f));
+                    Prim(PrimitiveType.Cylinder, "Can", vis, new Vector3(0f, 0.13f, 0f), new Vector3(0.16f, 0.13f, 0.16f), canMat);
+                    var top = Prim(PrimitiveType.Cylinder, "CanTop", vis, new Vector3(0f, 0.27f, 0f), new Vector3(0.14f, 0.015f, 0.14f), MetalMat("CanSilver", new Color(0.8f, 0.82f, 0.85f)));
+                    Object.DestroyImmediate(top.GetComponent<Collider>());
+                    var tab = Prim(PrimitiveType.Cube, "PopTab", vis, new Vector3(0.02f, 0.29f, 0f), new Vector3(0.05f, 0.012f, 0.08f), MetalMat("CanSilver", Color.white));
+                    Object.DestroyImmediate(tab.GetComponent<Collider>());
+                    break;
+                }
+                case "glass_jar":
+                    MeshPrim(MeshAsset("Items", "GlassBottle", () => Bottle(0.11f, 0.34f)), "GlassBottle", vis, new Vector3(0f, 0.02f, 0f), Vector3.one,
+                        GlassMat(index % 2 == 0 ? "Item_GlassGreen" : "Item_GlassAmber", index % 2 == 0 ? new Color(0.3f, 0.75f, 0.45f) : new Color(0.9f, 0.55f, 0.2f), 0.6f));
+                    break;
+                case "car_tire":
+                {
+                    var tire = MeshPrim(MeshAsset("Items", "CarTire", () => Torus(0.34f, 0.15f, 18)), "Tire", vis, new Vector3(0f, 0.16f, 0f), Vector3.one, Mat("Item_Tire", new Color(0.12f, 0.12f, 0.13f)));
+                    tire.transform.localRotation = Quaternion.Euler(90f, 0f, 0f); // flat on the sand
+                    var sandCake = Prim(PrimitiveType.Cylinder, "SandCake", vis, new Vector3(0f, 0.05f, 0f), new Vector3(0.36f, 0.05f, 0.36f), Mat("Sand", new Color(0.78f, 0.68f, 0.5f)));
+                    Object.DestroyImmediate(sandCake.GetComponent<Collider>());
+                    break;
+                }
+                case "ghost_net":
+                {
+                    var netMat2 = Mat("GhostNet", new Color(0.2f, 0.55f, 0.45f));
+                    var ring = MeshAsset("Items", "GhostNetRing", () => Torus(0.2f, 0.03f, 12));
+                    foreach (var (x, z, tilt) in new[] { (-0.08f, 0f, 70f), (0.08f, 0.05f, 95f), (0f, -0.08f, 80f) })
+                        MeshPrim(ring, "NetLoop", vis, new Vector3(x, 0.14f, z), Vector3.one, netMat2).transform.localRotation = Quaternion.Euler(tilt, x * 100f, 0f);
+                    foreach (var bx in new[] { -0.22f, 0.24f })
+                    {
+                        var buoy = Prim(PrimitiveType.Sphere, "CorkBuoy", vis, new Vector3(bx, 0.16f, 0.1f), Vector3.one * 0.11f, Mat("BuoyOrange", new Color(1f, 0.5f, 0.15f)));
+                        Object.DestroyImmediate(buoy.GetComponent<Collider>());
+                    }
+                    break;
+                }
+                case "sea_glass":
+                {
+                    var glassColors = new[] { ("Item_SeaGlassFoam", new Color(0.35f, 0.9f, 0.75f)), ("Item_SeaGlassCobalt", new Color(0.2f, 0.45f, 0.95f)), ("Item_SeaGlassFrost", new Color(0.9f, 0.96f, 0.97f)) };
+                    var (matName, matColor) = glassColors[index % 3];
+                    var gem = MeshPrim(MeshAsset("Items", "SeaGlassShard", Gem), "SeaGlass", vis, new Vector3(0f, 0.08f, 0f), new Vector3(0.13f, 0.07f, 0.1f), GlassMat(matName, matColor, 0.65f));
+                    gem.transform.localRotation = Quaternion.Euler(15f, index * 50f, 10f);
+                    break;
+                }
+                case "scallop_shell":
+                {
+                    var shellMat = Mat("Item_Scallop", new Color(1f, 0.62f, 0.58f));
+                    var fan = Prim(PrimitiveType.Sphere, "ShellFan", vis, new Vector3(0f, 0.05f, 0f), new Vector3(0.34f, 0.08f, 0.3f), shellMat);
+                    Object.DestroyImmediate(fan.GetComponent<Collider>());
+                    for (int rib = -2; rib <= 2; rib++)
+                    {
+                        var ribGo = Prim(PrimitiveType.Cube, "Rib", vis, new Vector3(rib * 0.05f, 0.09f, 0.03f), new Vector3(0.025f, 0.02f, 0.24f), Mat("Item_ScallopRib", new Color(0.95f, 0.45f, 0.42f)));
+                        ribGo.transform.localRotation = Quaternion.Euler(0f, rib * 18f, 0f);
+                        Object.DestroyImmediate(ribGo.GetComponent<Collider>());
+                    }
+                    break;
+                }
+                case "conch_shell":
+                {
+                    var conchMat = Mat("Item_Conch", new Color(1f, 0.78f, 0.62f));
+                    foreach (var (x, y, s) in new[] { (0f, 0.12f, 0.3f), (0.1f, 0.16f, 0.22f), (0.17f, 0.2f, 0.14f) })
+                    {
+                        var whorl = Prim(PrimitiveType.Sphere, "Whorl", vis, new Vector3(x, y, 0f), new Vector3(s, s * 0.85f, s), conchMat);
+                        Object.DestroyImmediate(whorl.GetComponent<Collider>());
+                    }
+                    Prim(PrimitiveType.Sphere, "Lip", vis, new Vector3(-0.1f, 0.1f, 0.02f), new Vector3(0.16f, 0.1f, 0.24f), Mat("Item_ConchLip", new Color(1f, 0.6f, 0.55f)));
+                    break;
+                }
+                case "snack_wrapper":
+                {
+                    var wrap = Prim(PrimitiveType.Cube, "Wrapper", vis, new Vector3(0f, 0.05f, 0f), new Vector3(0.36f, 0.04f, 0.22f), MetalMat("Item_Wrapper", new Color(1f, 0.6f, 0.15f)));
+                    wrap.transform.localRotation = Quaternion.Euler(4f, 20f, 6f);
+                    Object.DestroyImmediate(wrap.GetComponent<Collider>());
+                    break;
+                }
+                case "driftwood_clump":
+                {
+                    var woodMat = Mat("Item_Driftwood", new Color(0.6f, 0.48f, 0.34f));
+                    foreach (var (z, rot) in new[] { (-0.06f, 8f), (0.08f, -12f) })
+                    {
+                        var logGo = Prim(PrimitiveType.Capsule, "Driftwood", vis, new Vector3(0f, 0.09f, z), new Vector3(0.14f, 0.42f, 0.14f), woodMat);
+                        logGo.transform.localRotation = Quaternion.Euler(0f, rot, 90f);
+                        Object.DestroyImmediate(logGo.GetComponent<Collider>());
+                    }
+                    break;
+                }
+                default:
+                    Prim(PrimitiveType.Sphere, "Generic", vis, new Vector3(0f, 0.12f, 0f), Vector3.one * 0.24f, Mat("Item_" + item.name, Color.magenta));
+                    break;
+            }
+            foreach (var c in vis.GetComponentsInChildren<Collider>()) Object.DestroyImmediate(c);
         }
 
         static void BuildLitter(GameData data)
@@ -525,13 +801,7 @@ namespace OceanGuardians.EditorTools
                     var root = new GameObject(item.name);
                     root.transform.SetParent(parent);
                     root.transform.SetPositionAndRotation(p, Quaternion.Euler(0f, (float)rng.NextDouble() * 360f, 0f));
-                    var vis = Prim(shape, "Visual", root.transform, new Vector3(0f, scale.y + 0.02f, 0f), scale, Mat("Item_" + item.name, color));
-                    if (shape is PrimitiveType.Cylinder or PrimitiveType.Capsule && item.displayName is "Plastic Bottle" or "Conch Shell")
-                    {
-                        vis.transform.localRotation = Quaternion.Euler(0f, 0f, 90f); // lying on its side
-                        vis.transform.localPosition = new Vector3(0f, scale.x * 0.5f + 0.02f, 0f);
-                    }
-                    Object.DestroyImmediate(vis.GetComponent<Collider>());
+                    BuildItemVisual(item, root.transform, i);
                     var col = root.AddComponent<SphereCollider>();
                     col.isTrigger = true; col.radius = 0.7f; col.center = new Vector3(0f, 0.3f, 0f); // big tap target
                     var glint = Prim(PrimitiveType.Quad, "Glint", root.transform, new Vector3(0f, 0.45f, 0f), Vector3.one, item is CollectibleItemData ? glintFindMaterial : glintMaterial);
@@ -549,11 +819,41 @@ namespace OceanGuardians.EditorTools
             var root = new GameObject(name);
             var visual = new GameObject("Visual").transform;
             visual.SetParent(root.transform, false);
-            Prim(PrimitiveType.Sphere, "Body", visual, new Vector3(0f, scale.y, 0f), scale, Mat("Critter_" + name, color));
-            Prim(PrimitiveType.Sphere, "Eye", visual, new Vector3(0.08f, scale.y * 1.6f, scale.z * 0.4f), Vector3.one * 0.06f, Mat("Critter_Eye", Color.black));
-            Prim(PrimitiveType.Sphere, "Eye", visual, new Vector3(-0.08f, scale.y * 1.6f, scale.z * 0.4f), Vector3.one * 0.06f, Mat("Critter_Eye", Color.black));
-            if (species == AmbientCreature.Species.Sanderling)
-                Prim(PrimitiveType.Cube, "Beak", visual, new Vector3(0f, scale.y * 1.3f, scale.z * 0.75f), new Vector3(0.03f, 0.03f, 0.18f), Mat("Critter_Eye", Color.black));
+            // Phase 6 stylized critters (crab colour passed in is overridden to chunky red-orange).
+            var eyeMat = Mat("Critter_Eye", Color.black);
+            if (species == AmbientCreature.Species.GhostCrab)
+            {
+                var crabMat = Mat("Critter_GhostCrab", new Color(0.92f, 0.38f, 0.2f));
+                Prim(PrimitiveType.Sphere, "Body", visual, new Vector3(0f, 0.16f, 0f), new Vector3(0.46f, 0.2f, 0.34f), crabMat);
+                foreach (var side in new[] { -1f, 1f })
+                {
+                    Prim(PrimitiveType.Cylinder, "EyeStalk", visual, new Vector3(side * 0.09f, 0.32f, 0.12f), new Vector3(0.035f, 0.09f, 0.035f), crabMat);
+                    Prim(PrimitiveType.Sphere, "Eye", visual, new Vector3(side * 0.09f, 0.42f, 0.13f), Vector3.one * 0.075f, eyeMat);
+                    Prim(PrimitiveType.Sphere, "Claw", visual, new Vector3(side * 0.26f, 0.14f, 0.2f), new Vector3(0.16f, 0.12f, 0.2f), crabMat);
+                    for (int leg = 0; leg < 3; leg++)
+                    {
+                        var legGo = Prim(PrimitiveType.Cylinder, "Leg", visual, new Vector3(side * 0.28f, 0.07f, -0.1f + leg * 0.1f), new Vector3(0.03f, 0.16f, 0.03f), crabMat);
+                        legGo.transform.localRotation = Quaternion.Euler(0f, 0f, side * 55f);
+                    }
+                }
+            }
+            else
+            {
+                var birdMat = Mat("Critter_Sanderling", new Color(0.96f, 0.95f, 0.93f));
+                var wingMat = Mat("Critter_Wing", new Color(0.55f, 0.55f, 0.6f));
+                Prim(PrimitiveType.Sphere, "Body", visual, new Vector3(0f, 0.22f, 0f), new Vector3(0.24f, 0.26f, 0.38f), birdMat);
+                Prim(PrimitiveType.Sphere, "Wing", visual, new Vector3(0f, 0.3f, -0.04f), new Vector3(0.22f, 0.1f, 0.3f), wingMat);
+                Prim(PrimitiveType.Sphere, "Head", visual, new Vector3(0f, 0.4f, 0.17f), Vector3.one * 0.19f, birdMat);
+                Prim(PrimitiveType.Sphere, "Cap", visual, new Vector3(0f, 0.46f, 0.15f), new Vector3(0.18f, 0.1f, 0.18f), wingMat);
+                var beak = Prim(PrimitiveType.Cylinder, "Beak", visual, new Vector3(0f, 0.39f, 0.32f), new Vector3(0.025f, 0.11f, 0.025f), eyeMat);
+                beak.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                foreach (var side in new[] { -1f, 1f })
+                {
+                    Prim(PrimitiveType.Sphere, "Eye", visual, new Vector3(side * 0.07f, 0.43f, 0.22f), Vector3.one * 0.045f, eyeMat);
+                    Prim(PrimitiveType.Cylinder, "Leg", visual, new Vector3(side * 0.05f, 0.06f, 0f), new Vector3(0.02f, 0.07f, 0.02f), eyeMat);
+                }
+                Prim(PrimitiveType.Cube, "Tail", visual, new Vector3(0f, 0.28f, -0.22f), new Vector3(0.12f, 0.03f, 0.14f), wingMat);
+            }
             foreach (var c in root.GetComponentsInChildren<Collider>()) Object.DestroyImmediate(c);
 
             var agent = root.AddComponent<NavMeshAgent>();
@@ -573,6 +873,73 @@ namespace OceanGuardians.EditorTools
         // =====================================================================
         // HUD
         // =====================================================================
+
+        /// <summary>
+        /// Phase 6 tropical grade: ACES tonemapping, +12% saturation, warm balance, gentle bloom,
+        /// depth texture on both pipelines (water foam + SSAO), SSAO feature ensured, soft shadows.
+        /// </summary>
+        static void BuildPostProcessing(Camera cam, Light sun)
+        {
+            string profilePath = ArtDir + "/BeachVolumeProfile.asset";
+            var profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(profilePath);
+            if (profile == null)
+            {
+                profile = ScriptableObject.CreateInstance<VolumeProfile>();
+                var tone = profile.Add<Tonemapping>(true);
+                tone.mode.Override(TonemappingMode.ACES);
+                var color = profile.Add<ColorAdjustments>(true);
+                color.saturation.Override(12f);
+                color.postExposure.Override(0.08f);
+                color.contrast.Override(4f);
+                var wb = profile.Add<WhiteBalance>(true);
+                wb.temperature.Override(10f); // warm tropical balance
+                var bloom = profile.Add<Bloom>(true);
+                bloom.threshold.Override(0.9f);
+                bloom.intensity.Override(0.35f);
+                bloom.scatter.Override(0.55f);
+                AssetDatabase.CreateAsset(profile, profilePath);
+            }
+            var volumeGo = new GameObject("GlobalVolume", typeof(Volume));
+            var volume = volumeGo.GetComponent<Volume>();
+            volume.isGlobal = true;
+            volume.sharedProfile = profile;
+
+            var camData = cam.GetComponent<UniversalAdditionalCameraData>() ?? cam.gameObject.AddComponent<UniversalAdditionalCameraData>();
+            camData.renderPostProcessing = true;
+            sun.shadows = LightShadows.Soft;
+            sun.shadowStrength = 0.85f;
+
+            foreach (var rpPath in new[] { "Assets/Settings/PC_RPAsset.asset", "Assets/Settings/Mobile_RPAsset.asset" })
+            {
+                var rp = AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>(rpPath);
+                if (rp == null) continue;
+                var so = new SerializedObject(rp);
+                var depthProp = so.FindProperty("m_RequireDepthTexture");
+                if (depthProp != null) depthProp.boolValue = true;
+                var shadowDist = so.FindProperty("m_ShadowDistance");
+                if (shadowDist != null) shadowDist.floatValue = 55f;
+                so.ApplyModifiedProperties();
+            }
+            foreach (var rendererPath in new[] { "Assets/Settings/PC_Renderer.asset", "Assets/Settings/Mobile_Renderer.asset" })
+            {
+                var rendererData = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(rendererPath);
+                if (rendererData == null) continue;
+                bool hasSsao = AssetDatabase.LoadAllAssetsAtPath(rendererPath).Any(a => a is ScreenSpaceAmbientOcclusion);
+                if (!hasSsao)
+                {
+                    var ssao = ScriptableObject.CreateInstance<ScreenSpaceAmbientOcclusion>();
+                    ssao.name = "ScreenSpaceAmbientOcclusion";
+                    AssetDatabase.AddObjectToAsset(ssao, rendererData);
+                    var so = new SerializedObject(rendererData);
+                    var features = so.FindProperty("m_RendererFeatures");
+                    features.arraySize++;
+                    features.GetArrayElementAtIndex(features.arraySize - 1).objectReferenceValue = ssao;
+                    var map = so.FindProperty("m_RendererFeatureMap");
+                    if (map != null) { map.arraySize++; map.GetArrayElementAtIndex(map.arraySize - 1).longValue = AssetDatabase.GetAssetPath(ssao).GetHashCode(); }
+                    so.ApplyModifiedProperties();
+                }
+            }
+        }
 
         static void BuildHud(Camera cam, Transform player, Transform kiosk, Transform seal)
         {
@@ -852,6 +1219,19 @@ namespace OceanGuardians.EditorTools
         }
 
         /// <summary>Transparent dark-sand material for the wet band left behind by waves.</summary>
+        /// <summary>The stylized shoreline water material (shader in Shaders/, copied to Art/Shaders on build).</summary>
+        static Material WaterMaterial()
+        {
+            string path = ArtDir + "/Shaders/StylizedWater.mat";
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (m != null) return m;
+            var shader = Shader.Find("OceanGuardians/StylizedWater");
+            m = new Material(shader ? shader : Shader.Find("Universal Render Pipeline/Unlit"));
+            if (shader == null) Debug.LogWarning("[Ocean Guardians] StylizedWater shader not found; water falls back to Unlit.");
+            AssetDatabase.CreateAsset(m, path);
+            return m;
+        }
+
         static Material WetSandMaterial()
         {
             string path = $"{MatDir}/WetSand.mat";
@@ -875,6 +1255,121 @@ namespace OceanGuardians.EditorTools
             m = new Material(Shader.Find("Sprites/Default"));
             var tex = AssetDatabase.GetBuiltinExtraResource<Texture2D>("Default-Particle.psd");
             m.mainTexture = tex ? tex : roundSprite.texture;
+            AssetDatabase.CreateAsset(m, path);
+            return m;
+        }
+
+        // =====================================================================
+        // Phase 6 stylized art: procedural meshes + translucent/metal materials
+        // =====================================================================
+
+        /// <summary>Creates (or loads) a procedural Mesh asset under Art/&lt;folder&gt;.</summary>
+        static Mesh MeshAsset(string folder, string name, System.Func<Mesh> build)
+        {
+            string path = $"{ArtDir}/{folder}/{name}.asset";
+            var m = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+            if (m != null) return m;
+            m = build();
+            m.name = name;
+            AssetDatabase.CreateAsset(m, path);
+            return m;
+        }
+
+        /// <summary>Revolves a (radius, height) profile around Y. Bottles, cans, tori (circle profile), cones.</summary>
+        static Mesh Lathe(Vector2[] profile, int segments = 14)
+        {
+            var verts = new List<Vector3>();
+            var tris = new List<int>();
+            for (int s = 0; s <= segments; s++)
+            {
+                float a = s / (float)segments * Mathf.PI * 2f;
+                var dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                foreach (var p in profile) verts.Add(dir * p.x + Vector3.up * p.y);
+            }
+            int ring = profile.Length;
+            for (int s = 0; s < segments; s++)
+                for (int i = 0; i < ring - 1; i++)
+                {
+                    int a = s * ring + i, b = a + ring;
+                    tris.AddRange(new[] { a, b, a + 1, b, b + 1, a + 1 });
+                }
+            var mesh = new Mesh { vertices = verts.ToArray(), triangles = tris.ToArray() };
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        static Mesh Torus(float radius, float tube, int segments = 16)
+        {
+            var profile = new List<Vector2>();
+            for (int i = 0; i <= 8; i++)
+            {
+                float a = i / 8f * Mathf.PI * 2f;
+                profile.Add(new Vector2(radius + Mathf.Cos(a) * tube, Mathf.Sin(a) * tube));
+            }
+            return Lathe(profile.ToArray(), segments);
+        }
+
+        static Mesh Bottle(float bodyRadius, float height)
+        {
+            float r = bodyRadius, h = height;
+            return Lathe(new[]
+            {
+                new Vector2(0.001f, 0f), new Vector2(r * 0.85f, 0f), new Vector2(r, h * 0.06f),
+                new Vector2(r * 0.94f, h * 0.3f), new Vector2(r, h * 0.42f), new Vector2(r * 0.94f, h * 0.55f), // molded ridges
+                new Vector2(r * 0.55f, h * 0.78f), new Vector2(r * 0.34f, h * 0.86f), new Vector2(r * 0.34f, h * 0.97f),
+                new Vector2(r * 0.4f, h), new Vector2(0.001f, h),
+            });
+        }
+
+        static Mesh Gem()
+        {
+            // Faceted octahedron shard for sea glass.
+            var verts = new[] { Vector3.up, Vector3.down, Vector3.left, Vector3.right, Vector3.forward, Vector3.back };
+            var tris = new[] { 0, 4, 3, 0, 3, 5, 0, 5, 2, 0, 2, 4, 1, 3, 4, 1, 5, 3, 1, 2, 5, 1, 4, 2 };
+            var mesh = new Mesh { vertices = verts, triangles = tris };
+            mesh.RecalculateNormals();
+            return mesh;
+        }
+
+        /// <summary>Places a procedural mesh (no collider - interaction colliders live on roots, as before).</summary>
+        static GameObject MeshPrim(Mesh mesh, string name, Transform parent, Vector3 localPos, Vector3 scale, Material mat)
+        {
+            var go = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
+            if (parent) go.transform.SetParent(parent, false);
+            go.transform.localPosition = localPos;
+            go.transform.localScale = scale;
+            go.GetComponent<MeshFilter>().sharedMesh = mesh;
+            go.GetComponent<MeshRenderer>().sharedMaterial = mat;
+            return go;
+        }
+
+        /// <summary>Translucent stylized glass/plastic (URP Lit, transparent surface).</summary>
+        static Material GlassMat(string name, Color color, float alpha = 0.55f)
+        {
+            string path = $"{MatDir}/{name}.mat";
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (m != null) return m;
+            m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            color.a = alpha;
+            m.SetColor("_BaseColor", color);
+            m.SetFloat("_Surface", 1f);
+            m.SetFloat("_Smoothness", 0.85f);
+            m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            m.renderQueue = 3000;
+            AssetDatabase.CreateAsset(m, path);
+            return m;
+        }
+
+        static Material MetalMat(string name, Color color)
+        {
+            string path = $"{MatDir}/{name}.mat";
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (m != null) return m;
+            m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            m.SetColor("_BaseColor", color);
+            m.SetFloat("_Metallic", 0.85f);
+            m.SetFloat("_Smoothness", 0.6f);
             AssetDatabase.CreateAsset(m, path);
             return m;
         }

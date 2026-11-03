@@ -1,28 +1,28 @@
-# Handoff: Ocean Guardians Phase 5
+# Handoff: Ocean Guardians Phase 6 (Path 1 — 3D Art & Production Visuals)
 
-**Branch:** `feat/phase-5` (based on `feat/phase-4`), pushed to [LUK3N4Z/New-Game](https://github.com/LUK3N4Z/New-Game/tree/feat/phase-5).
+**Branch:** `feat/phase-6` (based on `feat/phase-5`), pushed to [LUK3N4Z/New-Game](https://github.com/LUK3N4Z/New-Game/tree/feat/phase-6).
 **Unity:** 6000.6.4f1, URP.
 
 ## Status
-Compiles with zero errors/warnings. Greybox scene rebuilt headless and committed (workbench, gate, pause/crafting/map modals, gear accessories all present). All 15 EditMode tests pass (4 inventory + 5 quest + 4 day-cycle + 2 crafting). Play Mode not yet hand-tested.
+Zero compiler errors/warnings, all 15 EditMode tests pass, and the full headless Play Mode journey (real NavMesh walks + real UI clicks: gate blocked bubble → workbench craft → kiosk Stage 2/3/4/5 purchases with gear swaps → gate confirm/mastered) passes with the new art — zero regressions. Captured frames were eyeballed: Coral portrait, kiosk, camp, gate, and shoreline water all render as intended (one sign-mirroring bug was caught in captures and fixed; see below).
 
 ## What's done
 
 | Requirement | Where | Notes |
 |---|---|---|
-| A. Upcycling workshop | `Scripts/Crafting/{CraftingRecipeData,CraftingWorkbench}.cs`, `UI/CraftingUI.cs`, assets `Data/Recipe_*.asset` | New pure-model ops `Inventory.CountOf/TryRemove` + `BagSystem` collection remove (all-or-nothing). Bench beside the tent, modal auto-closes on walk-away like the kiosk. Craft = chime + `EventManager.ItemCrafted` + speech bubble + DayStats tally + checkpoint save. Lifetime counts persist. |
-| B. Visual gear | `Player/PlayerVisualEquipment.cs` + builder | Stage 2 teal 1.3x backpack w/ pouches, Stage 3 silver tong material (+40% grab in `ProgressionManager.Recalculate`, feeds the existing `GrabRange` → `LitterItem.InteractionRange`), Stage 5 aqua boots. Purchase = celebrate jump + spin (via `ProceduralAnimator.ExtraYaw`) + starburst particles. Applies on load too. |
-| C. Region 2 gate | `Environment/RegionGate.cs`, `UI/RegionGateUI.cs` | NE corner (20, 21): bluff arch, driftwood barricade, TMP signpost. < Stage 5: exact speech-bubble line. ≥ 5: confirm modal → brass fanfare, barricade clears, world-map teaser stamps Region 1 MASTERED, `region1Mastered` persists. |
-| D. Pause menu | `UI/PauseMenuUI.cs` | Esc or top-bar Gear button; `Time.timeScale = 0`; master/music/SFX sliders write `AudioManager` → PlayerPrefs (`vol_master/music/sfx`, loaded on startup); controls overview; Quick Save; Save & Quit. |
+| A. Coral | Builder `BuildPlayer` | Composite stylized model on the existing `Visual` root: curl-cluster auburn hair, white/pupil/catchlight eyes, torus round glasses + bridge/temples (procedural mesh `Art/Characters/Coral/GlassesRing.asset`), cap with white panel + teal wave disc, shirt + yellow vest, rolled sleeves, yellow gloves, shorts, notebook on the stage-1 backpack. All Phase 5 sockets (`Backpack`, boots, tong) unchanged, so gear swaps and `ProceduralAnimator` bob/squash/celebrate work as before. |
+| B. Kiosk & camp | Builder `BuildKiosk`/`BuildCamp`/`BuildRegionGate` | Timber shelter, sloped green shake roof, 3 rounded bins with lids/knobs and white pictogram discs (bottle/can/paper), "RECYCLE!" signboard + "Upgrades sold here!" notice — all facing the player (south) side. Tent got a door flap + emissive lantern (second DayNightCycle lantern light); workbench got a hammer + tool pots; campfire got crossed logs + emissive embers. Gate got a driftwood post arch + boulders on the approach side. |
+| C. Pickups | Builder `BuildItemVisual` + `Art/Items/*.asset` meshes | Lathe-turned PET bottle (translucent + white cap) and green/amber glass bottle, metallic soda can with silver top + pop-tab, torus car tire with caked sand core, ghost-net torus tangle + orange buoys, faceted sea-glass gems in 3 rotating colors, ribbed scallop fan, spiral conch, foil wrapper, driftwood logs. Roots, tap colliders, save ids and glints untouched. |
+| D. Water | `Art/Shaders/StylizedWater.shader` (+ material) | Depth-ramp shallow turquoise → deep azure, depth-fade foam rim, procedural animated caustics in the shallows. A sloped Seabed plane gives the depth texture real shallows to read; `ShoreWaves` wash/foam segments still ride on top. |
+| E. Wildlife | Builder `BuildSeal`/`CritterPrefab` | Seal pup: mottled spots, belly, muzzle, big glinting eyes, flippers; net is now torus rings + buoy on the same `GhostNet` object the rescue disables. Crab: red-orange, eye stalks, claws, 6 legs (dig/scuttle unchanged). Sanderling: white body, grey wing/cap, beak, legs, tail (peck/hop unchanged). |
+| F. Post & lighting | Builder `BuildPostProcessing`, `Art/BeachVolumeProfile.asset`, `Assets/Settings/*` | ACES tonemapping, +12 saturation, warm white balance, Bloom threshold 0.9 / intensity 0.35, soft sun shadows, shadow distance 55, depth texture enabled on both PC and Mobile pipeline assets, SSAO feature ensured on both renderer data assets (PC already had one). |
 
-## Deviations (deliberate)
-- **Ghost Net was not a collectable item**, so the Ocean Sunglasses recipe could never be crafted. Added it as litter (`ghost_net`, Blue bin, 8 credits, stack 2, journal `ghost_gear`); 3 spawn on the beach like other litter.
-- Stage names in the brief (Stage 2 "Heavy-Duty Bag" etc.) don't match the canonical 50-stage ladder; visual thresholds use the brief's stage *numbers* (2 bag, 3 grabber, 5 boots) without renaming ladder stages.
-- "Full water walking speed" at Stage 5: there is no wading slowdown anywhere in the game, so boots are visual-only for now (adding a slowdown just to remove it later would be inventing a mechanic).
-- QuestManager has no Craft step type yet; `ItemCrafted` is raised so a future quest step can hook it without touching the workbench.
+## Bug caught by looking at captures
+World-space TMP text reads correctly only from its local −Z side. First art pass put kiosk signs/bin fronts on the sea side (+Z), so the real game camera saw them mirrored. Fixed by moving bin fronts, pictograms, signboards and the gate signpost/arch to the player side (−Z); re-captured frames confirm "RECYCLE!" and the notice board read correctly.
 
-## Still to do
-1. **Playtest crafting:** collect 3 bottles + 1 ghost net → craft sunglasses, check counts, rewards, bubble, wrap-up "Upcycled Creations" line, save/reload keeps lifetime craft counts and remaining bag.
-2. **Gear check:** buy stages 2/3/5 at the kiosk (credits needed: 45/75/165 by the cost curve) — backpack swap, silver tong + longer grab, aqua boots, spin + sparkle; reload and confirm visuals restore.
-3. **Gate check:** bubble below Stage 5; modal + fanfare + map at Stage 5; barricade stays cleared after F9.
-4. **Pause check:** Esc during daylight freezes the sun; sliders change volume live and survive restart; Resume/Quick Save/Quit paths. Watch for any system misbehaving under `timeScale = 0` (speech bubbles and fades use scaled/unscaled time inconsistently — bubbles freeze mid-pause, which is fine).
+## Still to do / watch
+1. **Human play pass for taste:** color grade warmth, bloom on glints at sunset/dusk (DayNightCycle tints may fight the volume), water foam width against the moving wash, caustics strength.
+2. **Mobile check:** depth texture + SSAO now on for the Mobile pipeline — measure GPU cost on a real device; consider dropping SSAO on Mobile if it hurts.
+3. Gate signpost sits partly behind the left bluff from the default angle; nudge it east if it bothers.
+4. Coral's vest is a plain slab; a future art pass could sculpt it (and add real FBX via the existing Animator bridge without touching builder logic).
+5. The seabed plane's far edge can read as a faint sandbar line in the water; widen/soften if desired.
