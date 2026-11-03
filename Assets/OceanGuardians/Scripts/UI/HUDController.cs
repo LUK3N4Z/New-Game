@@ -57,6 +57,7 @@ namespace OceanGuardians.UI
         [SerializeField] GameObject depositPage;
         [SerializeField] GameObject shopPage;
         [SerializeField] Button quickDepositButton;
+        [SerializeField] Button manualSortButton;
         [SerializeField] TMP_Text depositResultText;
 
         [Header("Upgrade Shop")]
@@ -129,6 +130,7 @@ namespace OceanGuardians.UI
             shopTabButton.onClick.AddListener(() => ShowKioskPage(shop: true));
             closeButton.onClick.AddListener(() => openKiosk?.Close());
             quickDepositButton.onClick.AddListener(OnQuickDeposit);
+            if (manualSortButton) manualSortButton.onClick.AddListener(OnManualSort);
             buyButton.onClick.AddListener(OnBuy);
             journalButton.onClick.AddListener(ToggleJournal);
             journalCloseButton.onClick.AddListener(ToggleJournal);
@@ -212,6 +214,13 @@ namespace OceanGuardians.UI
             depositPage.SetActive(!shop);
             shopPage.SetActive(shop);
             if (shop) RefreshShop();
+        }
+
+        void OnManualSort()
+        {
+            // Close the kiosk modal (keeps Coral parked at the kiosk), then open the sorter.
+            openKiosk?.Close();
+            EventManager.RaiseMatch3Requested();
         }
 
         void OnQuickDeposit()

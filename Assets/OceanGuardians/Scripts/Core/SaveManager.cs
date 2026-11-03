@@ -52,6 +52,8 @@ namespace OceanGuardians.Core
             public int dayCrafted;
             public List<StackSave> craftedItemCounts = new(); // StackSave reused: id = recipeId, quantity = lifetime crafts
             public bool region1Mastered;
+            public int sorterLifetimeRounds;
+            public int sorterLifetimeWins;
         }
 
         public static SaveManager Instance { get; private set; }
@@ -172,6 +174,8 @@ namespace OceanGuardians.Core
             var bench = Crafting.CraftingWorkbench.Instance;
             if (bench) foreach (var kv in bench.LifetimeCounts) d.craftedItemCounts.Add(new StackSave { id = kv.Key, quantity = kv.Value });
             if (Environment.RegionGate.Instance) d.region1Mastered = Environment.RegionGate.Instance.Region1Mastered;
+            var sorter = MiniGames.Match3.RecycleSorterGame.Instance;
+            if (sorter) { d.sorterLifetimeRounds = sorter.LifetimeRounds; d.sorterLifetimeWins = sorter.LifetimeWins; }
 
             var bag = BagSystem.Instance;
             if (bag)
@@ -209,6 +213,7 @@ namespace OceanGuardians.Core
             DayStats.Instance?.Restore(d.dayLitter, d.dayFinds, d.dayRescues, d.dayCredits, d.dayCoins, d.dayEco, d.dayJournalTitles, d.dayCrafted);
             Crafting.CraftingWorkbench.Instance?.RestoreCounts(d.craftedItemCounts.Select(s => new System.Collections.Generic.KeyValuePair<string, int>(s.id, s.quantity)));
             Environment.RegionGate.Instance?.RestoreMastered(d.region1Mastered);
+            MiniGames.Match3.RecycleSorterGame.Instance?.RestoreStats(d.sorterLifetimeRounds, d.sorterLifetimeWins);
 
             var byId = itemCatalog.Where(i => i != null).ToDictionary(i => i.Id);
             IEnumerable<ItemStack> Stacks(List<StackSave> list) =>

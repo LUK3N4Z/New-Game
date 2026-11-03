@@ -123,6 +123,7 @@ namespace OceanGuardians.EditorTools
             WireArray(game.AddComponent<QuestManager>(), "questCatalog", CreateQuestAssets().Select(q => (Object)q).ToArray());
             Wire(game.AddComponent<OceanGuardians.Audio.AudioManager>(), ("wavesEmitter", (Object)Object.FindAnyObjectByType<ShoreWaves>().transform));
             game.AddComponent<DayStats>();
+            game.AddComponent<MiniGames.Match3.RecycleSorterGame>();
             var cycle = game.AddComponent<DayNightCycle>();
             Wire(cycle, ("sun", sun));
             WireArray(cycle, "lanterns", campLights.Select(l => (Object)l).ToArray());
@@ -1046,7 +1047,9 @@ namespace OceanGuardians.EditorTools
             Pill(depositPage, "BlueBin", new Vector2(-280f, 120f), new Color(0.2f, 0.5f, 0.95f), "Blue: Plastics", 0.5f);
             Pill(depositPage, "GreenBin", new Vector2(0f, 120f), new Color(0.25f, 0.7f, 0.3f), "Green: Metals & Glass", 0.5f);
             Pill(depositPage, "YellowBin", new Vector2(280f, 120f), new Color(0.95f, 0.75f, 0.15f), "Yellow: Paper & Wood", 0.5f);
-            var deposit = Btn("QuickDeposit", depositPage, "Quick Deposit All", new Color(0.25f, 0.75f, 0.35f), new Vector2(0.5f, 0.5f), new Vector2(0f, 10f), new Vector2(460f, 100f));
+            var deposit = Btn("QuickDeposit", depositPage, "Quick Deposit", new Color(0.25f, 0.75f, 0.35f), new Vector2(0.5f, 0.5f), new Vector2(-240f, 10f), new Vector2(440f, 100f));
+            var manualSort = Btn("ManualSort", depositPage, "Manual Sort (+25% Bonus)", new Color(0.35f, 0.55f, 0.95f), new Vector2(0.5f, 0.5f), new Vector2(240f, 10f), new Vector2(440f, 100f));
+            manualSort.GetComponentInChildren<TMP_Text>().fontSize = 26;
             var result = Text("Result", depositPage, "", 28, new Color(0.2f, 0.25f, 0.3f));
             Place(result.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -120f), new Vector2(800f, 100f));
 
@@ -1123,6 +1126,32 @@ namespace OceanGuardians.EditorTools
             Wire(canvasGo.AddComponent<DaySummaryUI>(), ("panel", summary.gameObject), ("headerText", sHeader),
                 ("haulText", sHaul), ("journalText", sJournal), ("sleepButton", sleep), ("fadeOverlay", fade));
 
+            // ---- Recycle Sorter (match-3) panel ----
+            var sorterPanel = Panel("Match3Panel", hud, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(680f, 900f), new Color(0.97f, 0.98f, 0.96f, 0.98f));
+            sorterPanel.raycastTarget = true;
+            var sorterTitle = Text("Header", sorterPanel, "Recycle Sorter", 38, new Color(0.1f, 0.4f, 0.45f));
+            Place(sorterTitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(-90f, -42f), new Vector2(440f, 58f));
+            sorterTitle.fontStyle = FontStyles.Bold;
+            sorterTitle.alignment = TextAlignmentOptions.Left;
+            var movesBadge = Panel("MovesBadge", sorterPanel, Vector2.one, Vector2.one, new Vector2(-70f, -55f), new Vector2(110f, 86f), new Color(0.95f, 0.6f, 0.25f), roundSprite);
+            var movesText = Text("Moves", movesBadge, "Moves\n18", 24, Color.white);
+            movesText.fontStyle = FontStyles.Bold;
+            var objectives = Text("Objectives", sorterPanel, "", 26, new Color(0.15f, 0.22f, 0.27f));
+            Place(objectives.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -140f), new Vector2(600f, 130f));
+            objectives.alignment = TextAlignmentOptions.TopLeft;
+            var boardBg = Panel("BoardBackground", sorterPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -30f), new Vector2(530f, 530f), new Color(0.16f, 0.3f, 0.38f, 0.9f));
+            boardBg.raycastTarget = true;
+            var boardRoot = Rect("BoardRoot", boardBg.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(492f, 492f));
+            var scoreText = Text("Score", sorterPanel, "Score: 0", 28, new Color(0.15f, 0.35f, 0.3f));
+            Place(scoreText.rectTransform, new Vector2(0.5f, 0f), new Vector2(-160f, 130f), new Vector2(300f, 45f));
+            scoreText.alignment = TextAlignmentOptions.Left;
+            var sorterMessage = Text("Message", sorterPanel, "", 24, new Color(0.12f, 0.3f, 0.35f));
+            Place(sorterMessage.rectTransform, new Vector2(0.5f, 0f), new Vector2(-120f, 85f), new Vector2(400f, 60f));
+            var sorterQuit = Btn("SorterQuit", sorterPanel, "Quit to Beach", new Color(0.85f, 0.45f, 0.35f), new Vector2(1f, 0f), new Vector2(-150f, 45f), new Vector2(270f, 64f));
+            Wire(canvasGo.AddComponent<Match3UI>(), ("panel", sorterPanel.gameObject), ("boardRoot", boardRoot),
+                ("movesText", movesText), ("objectivesText", objectives), ("scoreText", scoreText),
+                ("messageText", sorterMessage), ("quitButton", sorterQuit));
+
             // ---- Pause / settings modal (last sibling = always on top) ----
             var pausePanel = Panel("PausePanel", hud, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(760f, 760f), new Color(0.92f, 0.97f, 1f, 0.92f));
             pausePanel.raycastTarget = true;
@@ -1152,7 +1181,7 @@ namespace OceanGuardians.EditorTools
                 ("floatingTextLayer", floatLayer), ("worldCamera", cam),
                 ("kioskPanel", modal.gameObject), ("depositTabButton", depositTab), ("shopTabButton", shopTab), ("closeButton", close),
                 ("depositPage", depositPage.gameObject), ("shopPage", shopPage.gameObject),
-                ("quickDepositButton", deposit), ("depositResultText", result),
+                ("quickDepositButton", deposit), ("manualSortButton", manualSort), ("depositResultText", result),
                 ("nextStageText", nextText), ("buyButton", buy), ("stageListText", listText),
                 ("journalPanel", journal.gameObject), ("journalButton", journalBtn), ("journalCloseButton", jClose), ("journalText", journalText),
                 ("minimapRoot", map.rectTransform));

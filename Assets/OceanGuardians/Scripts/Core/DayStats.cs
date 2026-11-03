@@ -19,6 +19,7 @@ namespace OceanGuardians.Core
         public int BeachFinds { get; private set; }
         public int WildlifeRescued { get; private set; }
         public int CraftedToday { get; private set; }
+        public int SorterWinsToday { get; private set; }
         public int CreditsEarned { get; private set; }
         public int CoinsEarned { get; private set; }
         public int EcoEarned { get; private set; }
@@ -46,6 +47,7 @@ namespace OceanGuardians.Core
             EventManager.CurrencyChanged += OnCurrencyChanged;
             EventManager.JournalUnlocked += OnJournalUnlocked;
             EventManager.ItemCrafted += OnCrafted;
+            EventManager.Match3Completed += OnSorter;
         }
 
         void OnDisable()
@@ -55,6 +57,7 @@ namespace OceanGuardians.Core
             EventManager.CurrencyChanged -= OnCurrencyChanged;
             EventManager.JournalUnlocked -= OnJournalUnlocked;
             EventManager.ItemCrafted -= OnCrafted;
+            EventManager.Match3Completed -= OnSorter;
         }
 
         void OnItemCollected(ItemData item, Vector3 _)
@@ -65,6 +68,7 @@ namespace OceanGuardians.Core
 
         void OnRescued(string _) => WildlifeRescued++;
         void OnCrafted(string _) => CraftedToday++;
+        void OnSorter(bool won, int _) { if (won) SorterWinsToday++; }
 
         void OnJournalUnlocked(JournalEntry entry)
         {
@@ -87,7 +91,7 @@ namespace OceanGuardians.Core
 
         public void ResetDay()
         {
-            LitterCollected = BeachFinds = WildlifeRescued = CraftedToday = 0;
+            LitterCollected = BeachFinds = WildlifeRescued = CraftedToday = SorterWinsToday = 0;
             CreditsEarned = CoinsEarned = EcoEarned = 0;
             JournalTitlesToday.Clear();
         }

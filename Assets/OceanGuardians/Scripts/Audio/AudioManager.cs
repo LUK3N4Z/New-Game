@@ -30,7 +30,7 @@ namespace OceanGuardians.Audio
         const int Rate = 44100;
         AudioSource wavesSource, musicSource;
         AudioSource[] pool;
-        AudioClip pickupPop, coinJingle, stepSand, stepWater, fanfare, buttonClick, gullCry, birdsong, craftChime, brassFanfare;
+        AudioClip pickupPop, coinJingle, stepSand, stepWater, fanfare, buttonClick, gullCry, birdsong, craftChime, brassFanfare, matchChime;
         float nextGullTime;
 
         public float MasterVolume { get => masterVolume; set { masterVolume = Mathf.Clamp01(value); AudioListener.volume = masterVolume; PlayerPrefs.SetFloat("vol_master", masterVolume); PlayerPrefs.Save(); } }
@@ -71,6 +71,7 @@ namespace OceanGuardians.Audio
             birdsong = Melody("MorningBirdsong", new[] { 2093f, 2637f, 2349f, 3136f, 2637f, 3520f, 3136f, 2637f }, 0.14f, 1.6f, 0.14f);
             craftChime = Melody("CraftingChime", new[] { 1568f, 1175f, 1568f, 2093f }, 0.08f, 0.7f, 0.28f); // hammer-tap rhythm, assembly sparkle
             brassFanfare = Melody("BrassFanfare", new[] { 392f, 523f, 659f, 784f, 1047f }, 0.15f, 1.4f, 0.34f);
+            matchChime = Melody("MatchChime", new[] { 1047f, 1319f, 1568f }, 0.07f, 0.45f, 0.26f);
             stepSand = NoiseBurst("StepSand", 0.09f, 0.18f, 0.25f);
             stepWater = NoiseBurst("StepWater", 0.14f, 0.5f, 0.22f);
             nextGullTime = Time.time + Random.Range(6f, 14f);
@@ -123,6 +124,11 @@ namespace OceanGuardians.Audio
         public void PlayFootstep(bool isWater) => Play(isWater ? stepWater : stepSand, Random.Range(0.9f, 1.1f));
         public void PlayMorningBirdsong() => Play(birdsong);
         public void PlayCraftingChime() => Play(craftChime);
+        /// <summary>Match-3: rising pitch with each cascade in the chain.</summary>
+        public void PlayMatchChime(int cascade) => Play(matchChime, 1f + Mathf.Min(cascade - 1, 5) * 0.12f);
+        public void PlayTileSelect() => PlayPickupPop();
+        public void PlaySplash() => Play(stepWater, 0.8f);
+        public void PlaySorterVictory() => PlayBrassFanfare();
         public void PlayBrassFanfare() => Play(brassFanfare);
 
         void Play(AudioClip clip, float pitch = 1f)

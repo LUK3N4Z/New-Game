@@ -55,6 +55,34 @@ namespace OceanGuardians.Environment
         /// Empties the bag into the right bins, pays Recycling Credits plus bonus Eco Tokens,
         /// and returns a short summary for the UI.
         /// </summary>
+        /// <summary>
+        /// Shared deposit core (Quick Deposit and the Match-3 sorter victory both land here):
+        /// empties the bag, pays credits x multiplier + item Eco + bonusEco, raises the usual events.
+        /// Returns credits paid, or -1 when the bag was empty.
+        /// </summary>
+        public int DepositAllCore(float creditMultiplier, int bonusEco, out int itemCount)
+        {
+            itemCount = 0;
+            var bag = BagSystem.Instance;
+            if (bag == null || bag.IsEmpty) return -1;
+            int baseCredits = 0;
+            foreach (var stack in bag.EmptyAll())
+            {
+                if (stack.item is not LitterItemData litter) continue;
+                baseCredits += litter.creditValue * stack.quantity;
+                itemCount += stack.quantity;
+            }
+            int credits = Mathf.RoundToInt(baseCredits * creditMultiplier);
+            int eco = Mathf.CeilToInt(itemCount / (float)Mathf.Max(1, itemsPerEcoToken)) + bonusEco;
+            var economy = EconomyManager.Instance;
+            economy?.Add(CurrencyType.RecyclingCredits, credits);
+            economy?.Add(CurrencyType.EcoTokens, eco);
+            OceanJournal.Instance?.Discover(journalEntryOnFirstDeposit);
+            EventManager.RaiseLitterDeposited(itemCount);
+            EventManager.RaiseCheckpoint(); // auto-save
+            return credits;
+        }
+
         public string QuickDepositAll()
         {
             var bag = BagSystem.Instance;

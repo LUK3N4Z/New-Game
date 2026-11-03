@@ -69,6 +69,10 @@ namespace OceanGuardians.Core
         public static event Action<Crafting.CraftingWorkbench> CraftingToggled;
         /// <summary>Region gate confirm prompt open (gate) / closed (null).</summary>
         public static event Action<RegionGate> RegionGatePrompt;
+        /// <summary>The kiosk's "Manual Sort" button was pressed; Match3UI opens a sorter round.</summary>
+        public static event Action Match3Requested;
+        /// <summary>(won, creditsAwarded) - a Recycle Sorter round finished. DayStats/SaveManager hook this.</summary>
+        public static event Action<bool, int> Match3Completed;
 
         public static void RaiseCurrencyChanged(CurrencyType type, int total) => CurrencyChanged?.Invoke(type, total);
         public static void RaiseBagChanged(int current, int max) => BagChanged?.Invoke(current, max);
@@ -90,6 +94,8 @@ namespace OceanGuardians.Core
         public static void RaiseItemCrafted(string recipeId) => ItemCrafted?.Invoke(recipeId);
         public static void RaiseCraftingToggled(Crafting.CraftingWorkbench bench) => CraftingToggled?.Invoke(bench);
         public static void RaiseRegionGatePrompt(RegionGate gate) => RegionGatePrompt?.Invoke(gate);
+        public static void RaiseMatch3Requested() => Match3Requested?.Invoke();
+        public static void RaiseMatch3Completed(bool won, int creditsAwarded) => Match3Completed?.Invoke(won, creditsAwarded);
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ClearAll()
@@ -100,6 +106,7 @@ namespace OceanGuardians.Core
             LitterDeposited = null; WildlifeRescued = null; AreaReached = null;
             DuskFalls = null; DayEnded = null; DayStarted = null;
             ItemCrafted = null; CraftingToggled = null; RegionGatePrompt = null;
+            Match3Requested = null; Match3Completed = null;
         }
     }
 }
