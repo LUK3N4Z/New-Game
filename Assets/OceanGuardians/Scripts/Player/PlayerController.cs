@@ -165,6 +165,11 @@ namespace OceanGuardians.Player
         public void SetAnimTrigger(string name)
         {
             if (animParams.Contains(name)) animator.SetTrigger(name);
+            // Greybox life: the procedural animator reacts to the same triggers.
+            var proc = GetComponent<ProceduralAnimator>();
+            if (proc == null) return;
+            if (name == "Grab") proc.PlayGrab();
+            else if (name == "Celebrate") proc.PlayCelebrate();
         }
 
         public void SetAnimBool(string name, bool value)

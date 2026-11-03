@@ -7,7 +7,7 @@ using OceanGuardians.Progression;
 namespace OceanGuardians.Core
 {
     /// <summary>What a clickable world object is, so the HUD can show the right context icon.</summary>
-    public enum InteractionKind { Litter, Collectible, Kiosk, Rescue }
+    public enum InteractionKind { Litter, Collectible, Kiosk, Rescue, Camp }
 
     /// <summary>
     /// Anything Coral can walk up to and use with a smart context click.
@@ -57,6 +57,12 @@ namespace OceanGuardians.Core
         public static event Action<string> WildlifeRescued;
         /// <summary>(areaId) - Coral entered a named place. Drives quest visit steps.</summary>
         public static event Action<string> AreaReached;
+        /// <summary>Dusk phase began (Coral's "head back to camp" moment).</summary>
+        public static event Action DuskFalls;
+        /// <summary>(dayNumber) - the day ended; the Day Wrap-Up screen opens.</summary>
+        public static event Action<int> DayEnded;
+        /// <summary>(dayNumber) - a fresh morning began after sleeping at camp.</summary>
+        public static event Action<int> DayStarted;
 
         public static void RaiseCurrencyChanged(CurrencyType type, int total) => CurrencyChanged?.Invoke(type, total);
         public static void RaiseBagChanged(int current, int max) => BagChanged?.Invoke(current, max);
@@ -72,6 +78,9 @@ namespace OceanGuardians.Core
         public static void RaiseLitterDeposited(int itemCount) => LitterDeposited?.Invoke(itemCount);
         public static void RaiseWildlifeRescued(string saveId) => WildlifeRescued?.Invoke(saveId);
         public static void RaiseAreaReached(string areaId) => AreaReached?.Invoke(areaId);
+        public static void RaiseDuskFalls() => DuskFalls?.Invoke();
+        public static void RaiseDayEnded(int dayNumber) => DayEnded?.Invoke(dayNumber);
+        public static void RaiseDayStarted(int dayNumber) => DayStarted?.Invoke(dayNumber);
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ClearAll()
@@ -80,6 +89,7 @@ namespace OceanGuardians.Core
             JournalUnlocked = null; StagePurchased = null; TargetChanged = null;
             RescueNearby = null; KioskToggled = null; CollectionChanged = null; Checkpoint = null;
             LitterDeposited = null; WildlifeRescued = null; AreaReached = null;
+            DuskFalls = null; DayEnded = null; DayStarted = null;
         }
     }
 }

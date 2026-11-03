@@ -30,7 +30,7 @@ namespace OceanGuardians.Audio
         const int Rate = 44100;
         AudioSource wavesSource, musicSource;
         AudioSource[] pool;
-        AudioClip pickupPop, coinJingle, stepSand, stepWater, fanfare, buttonClick, gullCry;
+        AudioClip pickupPop, coinJingle, stepSand, stepWater, fanfare, buttonClick, gullCry, birdsong;
         float nextGullTime;
 
         public float MasterVolume { get => masterVolume; set { masterVolume = Mathf.Clamp01(value); AudioListener.volume = masterVolume; } }
@@ -64,6 +64,7 @@ namespace OceanGuardians.Audio
             fanfare = Melody("RescueFanfare", new[] { 523f, 659f, 784f, 1047f }, 0.16f, 1.0f, 0.32f);
             buttonClick = Chirp("ButtonClick", 700f, 500f, 0.06f, 0.25f);
             gullCry = Chirp("GullCry", 1400f, 900f, 0.35f, 0.12f);
+            birdsong = Melody("MorningBirdsong", new[] { 2093f, 2637f, 2349f, 3136f, 2637f, 3520f, 3136f, 2637f }, 0.14f, 1.6f, 0.14f);
             stepSand = NoiseBurst("StepSand", 0.09f, 0.18f, 0.25f);
             stepWater = NoiseBurst("StepWater", 0.14f, 0.5f, 0.22f);
             nextGullTime = Time.time + Random.Range(6f, 14f);
@@ -114,6 +115,7 @@ namespace OceanGuardians.Audio
         public void PlayRescueFanfare() => Play(fanfare);
         public void PlayButtonClick() => Play(buttonClick);
         public void PlayFootstep(bool isWater) => Play(isWater ? stepWater : stepSand, Random.Range(0.9f, 1.1f));
+        public void PlayMorningBirdsong() => Play(birdsong);
 
         void Play(AudioClip clip, float pitch = 1f)
         {

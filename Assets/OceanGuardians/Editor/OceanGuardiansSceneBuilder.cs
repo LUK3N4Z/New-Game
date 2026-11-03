@@ -92,6 +92,7 @@ namespace OceanGuardians.EditorTools
             var player = BuildPlayer(new Vector3(0f, 0f, -4f), cam);
             BuildCamera(cam, player.transform);
             var seal = BuildSeal(new Vector3(8f, 0f, 14f));
+            var campLights = BuildCamp(new Vector3(-18f, 0f, -16f));
             BuildLitter(data);
 
             var zone = new GameObject("RestorationZone_SealCove").AddComponent<RestorationZone>();
@@ -112,6 +113,10 @@ namespace OceanGuardians.EditorTools
             WireArray(game.AddComponent<SaveManager>(), "itemCatalog", data.items.Select(i => (Object)i.data).ToArray());
             WireArray(game.AddComponent<QuestManager>(), "questCatalog", CreateQuestAssets().Select(q => (Object)q).ToArray());
             Wire(game.AddComponent<OceanGuardians.Audio.AudioManager>(), ("wavesEmitter", (Object)Object.FindAnyObjectByType<ShoreWaves>().transform));
+            game.AddComponent<DayStats>();
+            var cycle = game.AddComponent<DayNightCycle>();
+            Wire(cycle, ("sun", sun));
+            WireArray(cycle, "lanterns", campLights.Select(l => (Object)l).ToArray());
             var cove = new GameObject("QuestArea_WildlifeCove") { transform = { position = seal.transform.position } };
             Wire(cove.AddComponent<QuestAreaTrigger>(), ("areaId", "wildlife_cove"), ("radius", 6f), ("player", player.transform));
 
@@ -221,7 +226,15 @@ namespace OceanGuardians.EditorTools
             Prim(PrimitiveType.Cylinder, "Cap", root.transform, new Vector3(0f, 1.62f, 0.04f), new Vector3(0.66f, 0.05f, 0.66f), Mat("Coral_Cap", new Color(0.1f, 0.7f, 0.68f)));
             Prim(PrimitiveType.Cube, "Glasses", root.transform, new Vector3(0f, 1.27f, 0.3f), new Vector3(0.42f, 0.1f, 0.04f), Mat("Coral_Glasses", new Color(0.15f, 0.15f, 0.2f)));
             Prim(PrimitiveType.Cube, "Backpack", root.transform, new Vector3(0f, 0.6f, -0.36f), new Vector3(0.45f, 0.5f, 0.22f), Mat("Coral_Backpack", new Color(0.75f, 0.6f, 0.35f)));
+            // Group the greybox parts under "Visual" so ProceduralAnimator can bob them without moving the agent.
+            var visual = new GameObject("Visual").transform;
+            visual.SetParent(root.transform, false);
+            var parts = new List<Transform>();
+            foreach (Transform child in root.transform) if (child != visual) parts.Add(child);
+            foreach (var part in parts) part.SetParent(visual, true);
             foreach (var c in root.GetComponentsInChildren<Collider>()) Object.DestroyImmediate(c); // clicks pass through Coral
+            var tong = Prim(PrimitiveType.Cylinder, "GrabberTong", root.transform, new Vector3(0.35f, 0.65f, 0.25f), new Vector3(0.05f, 0.4f, 0.05f), Mat("Coral_Cap", Color.white));
+            Object.DestroyImmediate(tong.GetComponent<Collider>());
 
             var agent = root.AddComponent<NavMeshAgent>();
             agent.baseOffset = 0f; agent.radius = 0.35f; agent.height = 1.7f;
@@ -233,6 +246,7 @@ namespace OceanGuardians.EditorTools
             Wire(interaction, ("audioSource", audio));
             var controller = root.AddComponent<PlayerController>();
             Wire(controller, ("cam", cam), ("markerMaterial", fxMaterial));
+            Wire(root.AddComponent<ProceduralAnimator>(), ("visual", visual), ("grabberTong", tong.transform));
             return root;
         }
 
@@ -286,6 +300,22 @@ namespace OceanGuardians.EditorTools
                 go.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             }
             Wire(root.AddComponent<ShoreWaves>(), ("foam", foam.transform), ("wash", wash.transform), ("reach", 4.5f));
+            // Phase 4 shoreline polish: undulating segmented foam + a wet-sand band that dries slowly.
+            var wetBand = Prim(PrimitiveType.Cube, "WetSand", root.transform, Vector3.zero, new Vector3(50f, 0.015f, 1f), WetSandMaterial());
+            Object.DestroyImmediate(wetBand.GetComponent<Collider>());
+            wetBand.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var foamMat = Mat("Foam", new Color(0.97f, 0.98f, 0.97f));
+            var segments = new List<Object>();
+            for (int i = 0; i < 14; i++)
+            {
+                var seg = Prim(PrimitiveType.Cube, "FoamSeg", root.transform, new Vector3(-24f + i * 3.7f, 0.04f, 0f), new Vector3(3.9f, 0.03f, 0.4f), foamMat);
+                Object.DestroyImmediate(seg.GetComponent<Collider>());
+                seg.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                segments.Add(seg.transform);
+            }
+            var shoreline = root.AddComponent<ShorelineWave>();
+            Wire(shoreline, ("wetSandBand", wetBand.GetComponent<Renderer>()));
+            WireArray(shoreline, "foamSegments", segments.ToArray());
         }
 
         static GameObject BuildKiosk(Vector3 pos)
@@ -333,6 +363,41 @@ namespace OceanGuardians.EditorTools
             col.isTrigger = true; col.radius = 1f; col.center = new Vector3(0f, 0.4f, 0f);
             Wire(root.AddComponent<WildlifeRescue>(), ("netObject", net.gameObject), ("auraObject", aura), ("heartBurst", hearts), ("animalVisual", visual));
             return root;
+        }
+
+        /// <summary>Coral's base camp: clickable tent + campfire with a dusk lantern light. Returns the camp lights.</summary>
+        static Light[] BuildCamp(Vector3 pos)
+        {
+            var root = new GameObject("BaseCamp");
+            root.transform.position = pos;
+            root.transform.rotation = Quaternion.Euler(0f, 35f, 0f); // doorway toward the beach
+
+            var tentMat = Mat("Tent", new Color(0.95f, 0.55f, 0.25f));
+            var sideL = Prim(PrimitiveType.Cube, "TentLeft", root.transform, new Vector3(-0.85f, 0.95f, 0f), new Vector3(0.12f, 2.2f, 2.6f), tentMat);
+            sideL.transform.localRotation = Quaternion.Euler(0f, 0f, 42f);
+            var sideR = Prim(PrimitiveType.Cube, "TentRight", root.transform, new Vector3(0.85f, 0.95f, 0f), new Vector3(0.12f, 2.2f, 2.6f), tentMat);
+            sideR.transform.localRotation = Quaternion.Euler(0f, 0f, -42f);
+            Prim(PrimitiveType.Cube, "TentBack", root.transform, new Vector3(0f, 0.8f, -1.25f), new Vector3(1.9f, 1.7f, 0.12f), tentMat);
+            var tentHit = new GameObject("BaseCampTent");
+            tentHit.transform.SetParent(root.transform, false);
+            tentHit.transform.localPosition = new Vector3(0f, 0.8f, 0f);
+            var col = tentHit.AddComponent<SphereCollider>();
+            col.radius = 1.8f;
+            tentHit.AddComponent<BaseCampTent>();
+            foreach (var c in root.GetComponentsInChildren<Collider>()) if (c != col) Object.DestroyImmediate(c); // only the tent sphere is clickable
+
+            var firePos = new Vector3(2.6f, 0f, 1.8f);
+            Object.DestroyImmediate(Prim(PrimitiveType.Cylinder, "Campfire", root.transform, firePos + Vector3.up * 0.12f, new Vector3(0.7f, 0.12f, 0.7f), Mat("Rock", Color.gray)).GetComponent<Collider>());
+            Particles(root.transform, "CampfireFlame", new Color(1f, 0.6f, 0.25f), true, 14f, 0, 0.35f, 0.9f, 0.8f).transform.localPosition = firePos + Vector3.up * 0.3f;
+            var fireLightGo = new GameObject("CampfireLight");
+            fireLightGo.transform.SetParent(root.transform, false);
+            fireLightGo.transform.localPosition = firePos + Vector3.up * 1f;
+            var fireLight = fireLightGo.AddComponent<Light>();
+            fireLight.type = LightType.Point;
+            fireLight.color = new Color(1f, 0.62f, 0.3f);
+            fireLight.range = 9f;
+            fireLight.intensity = 0f; // DayNightCycle fades it on at dusk
+            return new[] { fireLight };
         }
 
         static void BuildLitter(GameData data)
@@ -415,6 +480,8 @@ namespace OceanGuardians.EditorTools
 
             // Floating text sits underneath everything else.
             var floatLayer = Rect("FloatingTextLayer", hud, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            var speechLayer = Rect("SpeechBubbleLayer", hud, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            Wire(canvasGo.AddComponent<SpeechBubbleManager>(), ("layer", speechLayer), ("worldCamera", cam));
 
             // ---- Top bar ----
             var top = Panel("TopBar", hud, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -45f), new Vector2(0f, 90f), new Color(0f, 0.2f, 0.3f, 0.55f));
@@ -422,6 +489,13 @@ namespace OceanGuardians.EditorTools
             var coins = Pill(top, "CollectorCoins", new Vector2(570f, 0f), new Color(0.7f, 0.4f, 0.85f), "Collector Coins: 0", width: 380f);
             var eco = Pill(top, "Eco", new Vector2(940f, 0f), new Color(0.25f, 0.7f, 0.35f), "Eco: 0");
             var journalBtn = Btn("JournalButton", top, "Journal (J)", new Color(0.95f, 0.6f, 0.3f), new Vector2(0f, 0.5f), new Vector2(1250f, 0f), new Vector2(230f, 62f));
+            // Sun dial rides the right end of the top bar, clear of the minimap below it.
+            var dial = Rect("SunDial", hud, Vector2.one, Vector2.one, new Vector2(-430f, -45f), new Vector2(180f, 90f));
+            var dialSun = Panel("SunIcon", dial, new Vector2(0.5f, 0.35f), new Vector2(0.5f, 0.35f), Vector2.zero, new Vector2(30f, 30f), new Color(1f, 0.82f, 0.25f), roundSprite);
+            var dialDay = Text("DayLabel", dial, "Day 1", 22, Color.white);
+            Place(dialDay.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 4f), new Vector2(180f, 30f));
+            dialDay.fontStyle = FontStyles.Bold;
+            Wire(canvasGo.AddComponent<SunDialUI>(), ("sunIcon", dialSun.rectTransform), ("dayText", dialDay));
 
             // ---- Bag gauge (bottom-left) ----
             var bag = Panel("BagWidget", hud, Vector2.zero, Vector2.zero, new Vector2(220f, 70f), new Vector2(380f, 90f), new Color(0f, 0.2f, 0.3f, 0.7f));
@@ -517,6 +591,25 @@ namespace OceanGuardians.EditorTools
             var jClose = Btn("Close", journal, "X", new Color(0.85f, 0.35f, 0.35f), Vector2.one, new Vector2(-45f, -45f), new Vector2(60f, 60f));
             var journalText = ScrollingText("Entries", journal, Vector2.zero, Vector2.one, new Vector2(0f, -40f), new Vector2(-60f, -140f));
 
+            // ---- Day Wrap-Up modal + fade-to-camp overlay ----
+            var fade = Panel("FadeOverlay", hud, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, new Color(0.05f, 0.05f, 0.12f, 0f));
+            fade.sprite = null;
+            fade.raycastTarget = false;
+            var summary = Panel("DaySummaryPanel", hud, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(880f, 560f), new Color(0.99f, 0.96f, 0.88f, 0.98f));
+            summary.raycastTarget = true;
+            var sHeader = Text("Header", summary, "Day 1 Complete!", 40, new Color(0.1f, 0.4f, 0.45f));
+            Place(sHeader.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -50f), new Vector2(820f, 70f));
+            sHeader.fontStyle = FontStyles.Bold;
+            var sHaul = Text("Haul", summary, "", 30, new Color(0.15f, 0.22f, 0.27f));
+            Place(sHaul.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -210f), new Vector2(800f, 230f));
+            sHaul.alignment = TextAlignmentOptions.TopLeft;
+            var sJournal = Text("JournalHighlight", summary, "", 26, new Color(0.1f, 0.5f, 0.55f));
+            Place(sJournal.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -360f), new Vector2(800f, 80f));
+            sJournal.alignment = TextAlignmentOptions.TopLeft;
+            var sleep = Btn("SleepButton", summary, "Sleep & Greet Tomorrow", new Color(0.25f, 0.75f, 0.35f), new Vector2(0.5f, 0f), new Vector2(0f, 70f), new Vector2(560f, 100f));
+            Wire(canvasGo.AddComponent<DaySummaryUI>(), ("panel", summary.gameObject), ("headerText", sHeader),
+                ("haulText", sHaul), ("journalText", sJournal), ("sleepButton", sleep), ("fadeOverlay", fade));
+
             Wire(canvasGo.AddComponent<HUDController>(),
                 ("creditsText", credits), ("coinsText", coins), ("ecoText", eco),
                 ("bagFill", bagFill), ("bagText", bagText),
@@ -587,6 +680,21 @@ namespace OceanGuardians.EditorTools
             m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
             m.SetColor("_BaseColor", color);
             m.SetFloat("_Smoothness", 0.25f);
+            AssetDatabase.CreateAsset(m, path);
+            return m;
+        }
+
+        /// <summary>Transparent dark-sand material for the wet band left behind by waves.</summary>
+        static Material WetSandMaterial()
+        {
+            string path = $"{MatDir}/WetSand.mat";
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (m != null) return m;
+            m = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+            m.SetColor("_BaseColor", new Color(0.42f, 0.34f, 0.22f, 0f));
+            m.SetFloat("_Surface", 1f); // transparent
+            m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            m.renderQueue = 3000;
             AssetDatabase.CreateAsset(m, path);
             return m;
         }

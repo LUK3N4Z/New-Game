@@ -45,6 +45,10 @@ namespace OceanGuardians.Core
             public int currentQuestStepIndex;
             public int currentQuestStepProgress;
             public List<string> completedQuestIds = new();
+            public int currentDayNumber = 1;
+            public float dayTimeProgress;
+            public int dayLitter, dayFinds, dayRescues, dayCredits, dayCoins, dayEco;
+            public List<string> dayJournalTitles = new();
         }
 
         public static SaveManager Instance { get; private set; }
@@ -152,6 +156,15 @@ namespace OceanGuardians.Core
                 d.currentQuestStepProgress = quests.CurrentQuestStepProgress;
                 d.completedQuestIds.AddRange(quests.CompletedQuestIds);
             }
+            var cycle = Environment.DayNightCycle.Instance;
+            if (cycle) { d.currentDayNumber = cycle.DayNumber; d.dayTimeProgress = cycle.TimeOfDay; }
+            var stats = DayStats.Instance;
+            if (stats)
+            {
+                d.dayLitter = stats.LitterCollected; d.dayFinds = stats.BeachFinds; d.dayRescues = stats.WildlifeRescued;
+                d.dayCredits = stats.CreditsEarned; d.dayCoins = stats.CoinsEarned; d.dayEco = stats.EcoEarned;
+                d.dayJournalTitles.AddRange(stats.JournalTitlesToday);
+            }
 
             var bag = BagSystem.Instance;
             if (bag)
@@ -185,6 +198,8 @@ namespace OceanGuardians.Core
             ProgressionManager.Instance?.RestoreStage(d.equipmentStage); // before the bag: stage sets capacity
             OceanJournal.Instance?.Restore(d.journal);
             Quests.QuestManager.Instance?.RestoreState(d.currentActiveQuestId, d.currentQuestStepIndex, d.currentQuestStepProgress, d.completedQuestIds);
+            Environment.DayNightCycle.Instance?.Restore(d.currentDayNumber, d.dayTimeProgress);
+            DayStats.Instance?.Restore(d.dayLitter, d.dayFinds, d.dayRescues, d.dayCredits, d.dayCoins, d.dayEco, d.dayJournalTitles);
 
             var byId = itemCatalog.Where(i => i != null).ToDictionary(i => i.Id);
             IEnumerable<ItemStack> Stacks(List<StackSave> list) =>
