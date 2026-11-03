@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f8590e182000db3489eecc1680bfc6e1, type: 3}
+  m_Name: Recipe_OceanSunglasses
+  m_EditorClassIdentifier: Assembly-CSharp::OceanGuardians.Crafting.CraftingRecipeData
+  recipeId: ocean_sunglasses
+  recipeName: Ocean Sunglasses
+  recipeDescription: Shade your eyes, save the seas.
+  recipeIcon: {fileID: 0}
+  requiredLitter:
+  - item: {fileID: 11400000, guid: 5a3de93259419614d88f5cd480227961, type: 2}
+    quantity: 3
+  - item: {fileID: 11400000, guid: f1269cf1979d7bf478f03bd31a9feeeb, type: 2}
+    quantity: 1
+  requiredFinds: []
+  rewardCollectorCoins: 35
+  rewardEcoTokens: 15
+  unlockRequiredStage: 0

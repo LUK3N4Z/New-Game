@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f8590e182000db3489eecc1680bfc6e1, type: 3}
+  m_Name: Recipe_CoastalEcoPlanter
+  m_EditorClassIdentifier: Assembly-CSharp::OceanGuardians.Crafting.CraftingRecipeData
+  recipeId: coastal_eco_planter
+  recipeName: Coastal Eco-Planter
+  recipeDescription: A home for dune flowers.
+  recipeIcon: {fileID: 0}
+  requiredLitter:
+  - item: {fileID: 11400000, guid: 9795960d3fed3074b9cb85e4ad228b7a, type: 2}
+    quantity: 2
+  - item: {fileID: 11400000, guid: 4bf2caca05aab5243992cbeecd32f066, type: 2}
+    quantity: 1
+  requiredFinds: []
+  rewardCollectorCoins: 40
+  rewardEcoTokens: 20
+  unlockRequiredStage: 0

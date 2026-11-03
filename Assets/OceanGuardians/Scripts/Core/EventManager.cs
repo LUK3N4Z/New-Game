@@ -7,7 +7,7 @@ using OceanGuardians.Progression;
 namespace OceanGuardians.Core
 {
     /// <summary>What a clickable world object is, so the HUD can show the right context icon.</summary>
-    public enum InteractionKind { Litter, Collectible, Kiosk, Rescue, Camp }
+    public enum InteractionKind { Litter, Collectible, Kiosk, Rescue, Camp, Workbench, Gate }
 
     /// <summary>
     /// Anything Coral can walk up to and use with a smart context click.
@@ -63,6 +63,12 @@ namespace OceanGuardians.Core
         public static event Action<int> DayEnded;
         /// <summary>(dayNumber) - a fresh morning began after sleeping at camp.</summary>
         public static event Action<int> DayStarted;
+        /// <summary>(recipeId) - an upcycling craft completed. DayStats tallies it; quests may hook it later.</summary>
+        public static event Action<string> ItemCrafted;
+        /// <summary>Crafting modal open (workbench) / closed (null).</summary>
+        public static event Action<Crafting.CraftingWorkbench> CraftingToggled;
+        /// <summary>Region gate confirm prompt open (gate) / closed (null).</summary>
+        public static event Action<RegionGate> RegionGatePrompt;
 
         public static void RaiseCurrencyChanged(CurrencyType type, int total) => CurrencyChanged?.Invoke(type, total);
         public static void RaiseBagChanged(int current, int max) => BagChanged?.Invoke(current, max);
@@ -81,6 +87,9 @@ namespace OceanGuardians.Core
         public static void RaiseDuskFalls() => DuskFalls?.Invoke();
         public static void RaiseDayEnded(int dayNumber) => DayEnded?.Invoke(dayNumber);
         public static void RaiseDayStarted(int dayNumber) => DayStarted?.Invoke(dayNumber);
+        public static void RaiseItemCrafted(string recipeId) => ItemCrafted?.Invoke(recipeId);
+        public static void RaiseCraftingToggled(Crafting.CraftingWorkbench bench) => CraftingToggled?.Invoke(bench);
+        public static void RaiseRegionGatePrompt(RegionGate gate) => RegionGatePrompt?.Invoke(gate);
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ClearAll()
@@ -90,6 +99,7 @@ namespace OceanGuardians.Core
             RescueNearby = null; KioskToggled = null; CollectionChanged = null; Checkpoint = null;
             LitterDeposited = null; WildlifeRescued = null; AreaReached = null;
             DuskFalls = null; DayEnded = null; DayStarted = null;
+            ItemCrafted = null; CraftingToggled = null; RegionGatePrompt = null;
         }
     }
 }

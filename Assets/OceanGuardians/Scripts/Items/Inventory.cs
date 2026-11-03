@@ -125,6 +125,31 @@ namespace OceanGuardians.Items
             return true;
         }
 
+        public int CountOf(ItemData item)
+        {
+            int total = 0;
+            for (int i = 0; i < Slots.Length; i++)
+                if (Slots[i] != null && Slots[i].item == item) total += Slots[i].quantity;
+            return total;
+        }
+
+        /// <summary>All-or-nothing removal across stacks (crafting ingredients). Emptied slots free up.</summary>
+        public bool TryRemove(ItemData item, int quantity)
+        {
+            if (item == null || quantity <= 0 || CountOf(item) < quantity) return false;
+            for (int i = 0; i < Slots.Length && quantity > 0; i++)
+            {
+                var s = Slots[i];
+                if (s == null || s.item != item) continue;
+                int moved = Math.Min(s.quantity, quantity);
+                s.quantity -= moved;
+                quantity -= moved;
+                if (s.quantity <= 0) Slots.Set(i, null);
+            }
+            Slots.Invoke();
+            return true;
+        }
+
         /// <summary>Empties every slot and returns the stacks that were in them.</summary>
         public List<ItemStack> RemoveAll()
         {

@@ -81,6 +81,8 @@ namespace OceanGuardians.Progression
                 BagCapacity += stage.bagCapacityBonus;
                 GrabRange += stage.grabRangeBonus;
             }
+            if (CurrentStage >= 3) GrabRange *= 1.4f; // Stage 3 telescopic grabber: +40% reach
+
         }
     }
 }

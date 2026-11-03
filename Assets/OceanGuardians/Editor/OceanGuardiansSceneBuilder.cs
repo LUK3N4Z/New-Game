@@ -92,7 +92,8 @@ namespace OceanGuardians.EditorTools
             var player = BuildPlayer(new Vector3(0f, 0f, -4f), cam);
             BuildCamera(cam, player.transform);
             var seal = BuildSeal(new Vector3(8f, 0f, 14f));
-            var campLights = BuildCamp(new Vector3(-18f, 0f, -16f));
+            var campLights = BuildCamp(new Vector3(-18f, 0f, -16f), data);
+            BuildRegionGate(new Vector3(20f, 0f, 21f));
             BuildLitter(data);
 
             var zone = new GameObject("RestorationZone_SealCove").AddComponent<RestorationZone>();
@@ -183,6 +184,7 @@ namespace OceanGuardians.EditorTools
             Litter("Glass Jar", RecycleBin.Green, 6, 2, 0, "", PrimitiveType.Cylinder, new Vector3(0.22f, 0.15f, 0.22f), new Color(0.75f, 0.95f, 0.85f));
             Litter("Car Tire", RecycleBin.Yellow, 25, 1, 9, "", PrimitiveType.Cylinder, new Vector3(0.9f, 0.12f, 0.9f), new Color(0.12f, 0.12f, 0.12f));
             Litter("Driftwood Clump", RecycleBin.Yellow, 2, 2, 0, "", PrimitiveType.Cube, new Vector3(0.9f, 0.15f, 0.2f), new Color(0.55f, 0.4f, 0.25f));
+            Litter("Ghost Net", RecycleBin.Blue, 8, 2, 0, "ghost_gear", PrimitiveType.Sphere, new Vector3(0.55f, 0.25f, 0.55f), new Color(0.35f, 0.5f, 0.45f)); // crafting ingredient (Ocean Sunglasses)
             Find("Sea Glass", 3, "sea_glass", PrimitiveType.Sphere, new Vector3(0.15f, 0.08f, 0.12f), new Color(0.3f, 0.85f, 0.7f));
             Find("Scallop Shell", 1, "mollusk_shells", PrimitiveType.Sphere, new Vector3(0.25f, 0.06f, 0.22f), new Color(1f, 0.7f, 0.65f));
             Find("Conch Shell", 2, "mollusk_shells", PrimitiveType.Capsule, new Vector3(0.18f, 0.18f, 0.18f), new Color(1f, 0.82f, 0.7f));
@@ -199,6 +201,30 @@ namespace OceanGuardians.EditorTools
                 q.nextQuestId = t.nextQuestId;
                 q.steps.AddRange(t.steps.Select(s => s.Clone()));
             })).ToList();
+
+        /// <summary>Authors the 3 starter upcycling recipes, resolving ingredients from the item assets.</summary>
+        static List<Crafting.CraftingRecipeData> CreateRecipeAssets(GameData data)
+        {
+            ItemData ById(string id) => data.items.Select(i => i.data).First(i => i.Id == id);
+            Crafting.InventoryCost Cost(string id, int n) => new() { item = ById(id), quantity = n };
+            Crafting.CraftingRecipeData Make(string file, string id, string name, string desc, int coins, int eco,
+                Crafting.InventoryCost[] litter, Crafting.InventoryCost[] finds) =>
+                Asset<Crafting.CraftingRecipeData>(file, r =>
+                {
+                    r.recipeId = id; r.recipeName = name; r.recipeDescription = desc;
+                    r.rewardCollectorCoins = coins; r.rewardEcoTokens = eco;
+                    r.requiredLitter.AddRange(litter); r.requiredFinds.AddRange(finds);
+                });
+            return new List<Crafting.CraftingRecipeData>
+            {
+                Make("Recipe_OceanSunglasses", "ocean_sunglasses", "Ocean Sunglasses", "Shade your eyes, save the seas.", 35, 15,
+                    new[] { Cost("plastic_bottle", 3), Cost("ghost_net", 1) }, new Crafting.InventoryCost[0]),
+                Make("Recipe_SeaGlassBracelet", "sea_glass_bracelet", "Sea Glass Bracelet", "Sparkly wrist treasure.", 50, 25,
+                    new Crafting.InventoryCost[0], new[] { Cost("sea_glass", 2), Cost("scallop_shell", 2) }),
+                Make("Recipe_CoastalEcoPlanter", "coastal_eco_planter", "Coastal Eco-Planter", "A home for dune flowers.", 40, 20,
+                    new[] { Cost("soda_can", 2), Cost("driftwood_clump", 1) }, new Crafting.InventoryCost[0]),
+            };
+        }
 
         static T Asset<T>(string name, System.Action<T> init) where T : ScriptableObject
         {
@@ -247,6 +273,35 @@ namespace OceanGuardians.EditorTools
             var controller = root.AddComponent<PlayerController>();
             Wire(controller, ("cam", cam), ("markerMaterial", fxMaterial));
             Wire(root.AddComponent<ProceduralAnimator>(), ("visual", visual), ("grabberTong", tong.transform));
+            // Modular gear looks swapped by PlayerVisualEquipment as stages unlock.
+            var backpack1 = visual.Find("Backpack").gameObject;
+            var backpack2 = Prim(PrimitiveType.Cube, "Backpack_Teal", visual, new Vector3(0f, 0.62f, -0.42f), new Vector3(0.59f, 0.66f, 0.3f) * 1.0f, Mat("Coral_Cap", Color.white));
+            backpack2.transform.localScale = new Vector3(0.59f, 0.65f, 0.29f); // ~1.3x the stage-1 bag
+            Object.DestroyImmediate(backpack2.GetComponent<Collider>());
+            var pouchL = Prim(PrimitiveType.Cube, "PouchL", backpack2.transform, new Vector3(-0.55f, 0f, 0f), new Vector3(0.25f, 0.4f, 0.6f), Mat("Coral_Cap", Color.white));
+            Object.DestroyImmediate(pouchL.GetComponent<Collider>());
+            var pouchR = Prim(PrimitiveType.Cube, "PouchR", backpack2.transform, new Vector3(0.55f, 0f, 0f), new Vector3(0.25f, 0.4f, 0.6f), Mat("Coral_Cap", Color.white));
+            Object.DestroyImmediate(pouchR.GetComponent<Collider>());
+            backpack2.SetActive(false);
+            GameObject Boots(string name, Color color)
+            {
+                var bootRoot = new GameObject(name);
+                bootRoot.transform.SetParent(visual, false);
+                foreach (var x in new[] { -0.16f, 0.16f })
+                    Object.DestroyImmediate(Prim(PrimitiveType.Cube, "Boot", bootRoot.transform, new Vector3(x, 0.09f, 0.05f), new Vector3(0.2f, 0.18f, 0.34f), Mat(name, color)).GetComponent<Collider>());
+                return bootRoot;
+            }
+            var boots1 = Boots("Boots_Brown", new Color(0.4f, 0.27f, 0.15f));
+            var boots5 = Boots("Boots_Aqua", new Color(0.2f, 0.85f, 0.85f));
+            boots5.SetActive(false);
+            var sparkle = Particles(root.transform, "UpgradeSparkle", new Color(1f, 0.85f, 0.3f), false, 0f, 26, 0.22f, 2.2f, 0.9f);
+            sparkle.transform.localPosition = new Vector3(0f, 1.1f, 0f);
+            Wire(root.AddComponent<PlayerVisualEquipment>(), ("bagStage1", backpack1), ("bagStage2", backpack2),
+                ("bootsStage1", boots1), ("bootsStage5", boots5),
+                ("grabberRenderer", tong.GetComponent<Renderer>()),
+                ("tongStage1Material", Mat("Tong_Basic", new Color(0.55f, 0.4f, 0.2f))),
+                ("tongStage3Material", Mat("Tong_Silver", new Color(0.85f, 0.88f, 0.92f))),
+                ("visual", visual), ("upgradeSparkle", sparkle));
             return root;
         }
 
@@ -366,7 +421,7 @@ namespace OceanGuardians.EditorTools
         }
 
         /// <summary>Coral's base camp: clickable tent + campfire with a dusk lantern light. Returns the camp lights.</summary>
-        static Light[] BuildCamp(Vector3 pos)
+        static Light[] BuildCamp(Vector3 pos, GameData data)
         {
             var root = new GameObject("BaseCamp");
             root.transform.position = pos;
@@ -397,14 +452,65 @@ namespace OceanGuardians.EditorTools
             fireLight.color = new Color(1f, 0.62f, 0.3f);
             fireLight.range = 9f;
             fireLight.intensity = 0f; // DayNightCycle fades it on at dusk
+
+            // Upcycling workbench beside the tent: table + click sphere + starter recipes.
+            var benchRoot = new GameObject("CraftingWorkbench");
+            benchRoot.transform.SetParent(root.transform, false);
+            benchRoot.transform.localPosition = new Vector3(-2.8f, 0f, 1.6f);
+            var benchHit = benchRoot.AddComponent<SphereCollider>();
+            benchHit.radius = 1.4f; benchHit.center = new Vector3(0f, 0.7f, 0f);
+            var tableMat = Mat("Workbench", new Color(0.45f, 0.32f, 0.18f));
+            Object.DestroyImmediate(Prim(PrimitiveType.Cube, "BenchTop", benchRoot.transform, new Vector3(0f, 0.85f, 0f), new Vector3(2f, 0.15f, 1f), tableMat).GetComponent<Collider>());
+            Object.DestroyImmediate(Prim(PrimitiveType.Cube, "BenchLegs", benchRoot.transform, new Vector3(0f, 0.4f, 0f), new Vector3(1.8f, 0.8f, 0.8f), tableMat).GetComponent<Collider>());
+            Object.DestroyImmediate(Prim(PrimitiveType.Sphere, "BenchDecor", benchRoot.transform, new Vector3(-0.5f, 1.05f, 0f), Vector3.one * 0.3f, Mat("Coral_Cap", Color.white)).GetComponent<Collider>());
+            WireArray(benchRoot.AddComponent<Crafting.CraftingWorkbench>(), "recipes", CreateRecipeAssets(data).Select(r => (Object)r).ToArray());
             return new[] { fireLight };
+        }
+
+        /// <summary>"The Rocky Passage": two bluffs, a spanning arch rock, driftwood barricade, wooden signpost.</summary>
+        static void BuildRegionGate(Vector3 pos)
+        {
+            var root = new GameObject("RegionGate_RockyPassage");
+            root.transform.position = pos;
+            var rock = Mat("Rock", Color.gray);
+            Object.DestroyImmediate(Prim(PrimitiveType.Cube, "BluffLeft", root.transform, new Vector3(-3.4f, 3.5f, 0f), new Vector3(3.5f, 7f, 3.5f), rock).GetComponent<Collider>());
+            Object.DestroyImmediate(Prim(PrimitiveType.Cube, "BluffRight", root.transform, new Vector3(3.4f, 3.5f, 0f), new Vector3(3.5f, 7f, 3.5f), rock).GetComponent<Collider>());
+            Object.DestroyImmediate(Prim(PrimitiveType.Cube, "ArchRock", root.transform, new Vector3(0f, 6.4f, 0f), new Vector3(8f, 1.8f, 3.4f), rock).GetComponent<Collider>());
+
+            var blockage = new GameObject("Blockage");
+            blockage.transform.SetParent(root.transform, false);
+            var logMat = Mat("Workbench", Color.white);
+            for (int i = 0; i < 3; i++)
+            {
+                var log = Prim(PrimitiveType.Cylinder, "DriftwoodLog", blockage.transform, new Vector3(0f, 0.5f + i * 0.55f, 0f), new Vector3(0.35f, 1.9f, 0.35f), logMat);
+                log.transform.localRotation = Quaternion.Euler(0f, 0f, 88f + i * 4f);
+                Object.DestroyImmediate(log.GetComponent<Collider>());
+            }
+            var boulder = Prim(PrimitiveType.Sphere, "Boulder", blockage.transform, new Vector3(1.2f, 0.6f, 0.2f), new Vector3(1.3f, 1.1f, 1.3f), rock);
+            Object.DestroyImmediate(boulder.GetComponent<Collider>());
+
+            var signMat = Mat("Workbench", Color.white);
+            Object.DestroyImmediate(Prim(PrimitiveType.Cylinder, "SignPost", root.transform, new Vector3(-2.2f, 0.9f, 1.6f), new Vector3(0.12f, 0.9f, 0.12f), signMat).GetComponent<Collider>());
+            var board = Prim(PrimitiveType.Cube, "SignBoard", root.transform, new Vector3(-2.2f, 1.7f, 1.6f), new Vector3(2.2f, 0.55f, 0.1f), signMat);
+            Object.DestroyImmediate(board.GetComponent<Collider>());
+            var signText = new GameObject("SignText", typeof(TextMeshPro));
+            signText.transform.SetParent(root.transform, false);
+            signText.transform.localPosition = new Vector3(-2.2f, 1.7f, 1.67f);
+            var tmp = signText.GetComponent<TextMeshPro>();
+            tmp.text = "To Region 2:\nRocky Shore ->";
+            tmp.fontSize = 0.55f; tmp.alignment = TextAlignmentOptions.Center;
+            tmp.color = new Color(0.2f, 0.12f, 0.05f);
+
+            var hit = root.AddComponent<SphereCollider>();
+            hit.radius = 2.6f; hit.center = new Vector3(0f, 1.2f, 0f);
+            Wire(root.AddComponent<RegionGate>(), ("blockage", blockage));
         }
 
         static void BuildLitter(GameData data)
         {
             var parent = new GameObject("Litter").transform;
             var rng = new System.Random(7);
-            var avoid = new[] { new Vector3(-10f, 0f, -8f), new Vector3(0f, 0f, -4f), new Vector3(8f, 0f, 14f) }; // kiosk, spawn, seal
+            var avoid = new[] { new Vector3(-10f, 0f, -8f), new Vector3(0f, 0f, -4f), new Vector3(8f, 0f, 14f), new Vector3(-18f, 0f, -16f), new Vector3(20f, 0f, 21f) }; // kiosk, spawn, seal, camp, gate
 
             // 3 of each litter type (only 1 tire), 2 of each natural find.
             foreach (var (item, shape, scale, color) in data.items)
@@ -485,7 +591,9 @@ namespace OceanGuardians.EditorTools
 
             // ---- Top bar ----
             var top = Panel("TopBar", hud, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -45f), new Vector2(0f, 90f), new Color(0f, 0.2f, 0.3f, 0.55f));
-            var credits = Pill(top, "Credits", new Vector2(200f, 0f), new Color(0.2f, 0.5f, 0.95f), "Credits: 0");
+            var gear = Btn("GearButton", top, "Gear", new Color(0.45f, 0.55f, 0.65f), new Vector2(0f, 0.5f), new Vector2(55f, 0f), new Vector2(84f, 62f));
+            gear.GetComponentInChildren<TMP_Text>().fontSize = 22;
+            var credits = Pill(top, "Credits", new Vector2(260f, 0f), new Color(0.2f, 0.5f, 0.95f), "Credits: 0");
             var coins = Pill(top, "CollectorCoins", new Vector2(570f, 0f), new Color(0.7f, 0.4f, 0.85f), "Collector Coins: 0", width: 380f);
             var eco = Pill(top, "Eco", new Vector2(940f, 0f), new Color(0.25f, 0.7f, 0.35f), "Eco: 0");
             var journalBtn = Btn("JournalButton", top, "Journal (J)", new Color(0.95f, 0.6f, 0.3f), new Vector2(0f, 0.5f), new Vector2(1250f, 0f), new Vector2(230f, 62f));
@@ -607,8 +715,67 @@ namespace OceanGuardians.EditorTools
             Place(sJournal.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -360f), new Vector2(800f, 80f));
             sJournal.alignment = TextAlignmentOptions.TopLeft;
             var sleep = Btn("SleepButton", summary, "Sleep & Greet Tomorrow", new Color(0.25f, 0.75f, 0.35f), new Vector2(0.5f, 0f), new Vector2(0f, 70f), new Vector2(560f, 100f));
+            // ---- Crafting modal ----
+            var craftPanel = Panel("CraftingPanel", hud, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(900f, 620f), new Color(0.98f, 0.95f, 0.9f, 0.97f));
+            craftPanel.raycastTarget = true;
+            var craftHeader = Text("Header", craftPanel, "Upcycling Workshop", 40, new Color(0.1f, 0.4f, 0.45f));
+            Place(craftHeader.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -45f), new Vector2(700f, 60f));
+            craftHeader.fontStyle = FontStyles.Bold;
+            var craftClose = Btn("Close", craftPanel, "X", new Color(0.85f, 0.35f, 0.35f), Vector2.one, new Vector2(-45f, -45f), new Vector2(60f, 60f));
+            var craftRows = Rect("RecipeRows", craftPanel.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -280f), new Vector2(800f, 400f));
+            var craftLayout = craftRows.gameObject.AddComponent<VerticalLayoutGroup>();
+            craftLayout.spacing = 12f; craftLayout.childForceExpandWidth = false; craftLayout.childForceExpandHeight = false;
+            var craftResult = Text("Result", craftPanel, "", 26, new Color(0.15f, 0.35f, 0.3f));
+            Place(craftResult.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 45f), new Vector2(820f, 50f));
+            Wire(canvasGo.AddComponent<CraftingUI>(), ("panel", craftPanel.gameObject), ("rowsRoot", craftRows),
+                ("closeButton", craftClose), ("resultText", craftResult));
+
+            // ---- Region gate confirm + world-map teaser ----
+            var gatePanel = Panel("RegionGatePanel", hud, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(720f, 380f), new Color(0.99f, 0.96f, 0.88f, 0.98f));
+            gatePanel.raycastTarget = true;
+            var gateTitle = Text("Header", gatePanel, "The Rocky Passage", 38, new Color(0.1f, 0.4f, 0.45f));
+            Place(gateTitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -45f), new Vector2(660f, 60f));
+            gateTitle.fontStyle = FontStyles.Bold;
+            var gateConfirmText = Text("Prompt", gatePanel, "", 30, new Color(0.15f, 0.22f, 0.27f));
+            Place(gateConfirmText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -150f), new Vector2(640f, 120f));
+            var gateYes = Btn("ConfirmJourney", gatePanel, "Journey Onward!", new Color(0.25f, 0.75f, 0.35f), new Vector2(0.5f, 0f), new Vector2(-165f, 70f), new Vector2(310f, 90f));
+            var gateNo = Btn("CancelJourney", gatePanel, "Not Yet", new Color(0.6f, 0.65f, 0.7f), new Vector2(0.5f, 0f), new Vector2(165f, 70f), new Vector2(310f, 90f));
+            var mapPanel = Panel("WorldMapPanel", hud, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1000f, 640f), new Color(0.75f, 0.88f, 0.9f, 0.98f));
+            mapPanel.raycastTarget = true;
+            var mapTitle = Text("Header", mapPanel, "Ocean Guardians World Map", 40, new Color(0.08f, 0.35f, 0.42f));
+            Place(mapTitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -50f), new Vector2(900f, 65f));
+            mapTitle.fontStyle = FontStyles.Bold;
+            var region1 = Panel("Region1Card", mapPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-240f, 20f), new Vector2(380f, 300f), new Color(0.85f, 0.78f, 0.6f));
+            Text("Label", region1, "Region 1\nCoral's Beach\n\n<b><color=#2E9E4F>MASTERED</color></b>", 34, new Color(0.2f, 0.25f, 0.2f));
+            var region2 = Panel("Region2Card", mapPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(240f, 20f), new Vector2(380f, 300f), new Color(0.55f, 0.6f, 0.68f));
+            Text("Label", region2, "Region 2\nRocky Shore\n\n<color=#FFF3B0>Coming Soon!</color>", 34, Color.white);
+            var mapClose = Btn("CloseMap", mapPanel, "Back to the Beach", new Color(0.25f, 0.75f, 0.35f), new Vector2(0.5f, 0f), new Vector2(0f, 65f), new Vector2(440f, 85f));
+            Wire(canvasGo.AddComponent<RegionGateUI>(), ("confirmPanel", gatePanel.gameObject), ("confirmText", gateConfirmText),
+                ("confirmButton", gateYes), ("cancelButton", gateNo), ("mapPanel", mapPanel.gameObject), ("mapCloseButton", mapClose));
+
             Wire(canvasGo.AddComponent<DaySummaryUI>(), ("panel", summary.gameObject), ("headerText", sHeader),
                 ("haulText", sHaul), ("journalText", sJournal), ("sleepButton", sleep), ("fadeOverlay", fade));
+
+            // ---- Pause / settings modal (last sibling = always on top) ----
+            var pausePanel = Panel("PausePanel", hud, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(760f, 760f), new Color(0.92f, 0.97f, 1f, 0.92f));
+            pausePanel.raycastTarget = true;
+            var pauseTitle = Text("Header", pausePanel, "Paused - Settings", 42, new Color(0.1f, 0.4f, 0.45f));
+            Place(pauseTitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -50f), new Vector2(680f, 65f));
+            pauseTitle.fontStyle = FontStyles.Bold;
+            var (masterSlider, masterValue) = VolumeRow(pausePanel, "Master Volume", new Vector2(0f, -150f));
+            var (musicSlider, musicValue) = VolumeRow(pausePanel, "Music Volume", new Vector2(0f, -220f));
+            var (sfxSlider, sfxValue) = VolumeRow(pausePanel, "SFX Volume", new Vector2(0f, -290f));
+            var controls = Text("Controls", pausePanel,
+                "<b>Controls</b>\nClick / Tap: move & interact    Hold: keep walking\nMouse wheel / 2-finger pinch: zoom\nJ: Ocean Journal    F5: Quick Save    F9: Quick Load    Esc: Pause",
+                24, new Color(0.15f, 0.22f, 0.27f));
+            Place(controls.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -430f), new Vector2(680f, 170f));
+            var resume = Btn("ResumeButton", pausePanel, "Resume Game", new Color(0.25f, 0.75f, 0.35f), new Vector2(0.5f, 0f), new Vector2(-190f, 65f), new Vector2(350f, 80f));
+            var quickSave = Btn("QuickSaveButton", pausePanel, "Quick Save (F5)", new Color(0.2f, 0.55f, 0.85f), new Vector2(0.5f, 0f), new Vector2(190f, 65f), new Vector2(350f, 80f));
+            var quit = Btn("QuitButton", pausePanel, "Save & Quit", new Color(0.85f, 0.4f, 0.35f), new Vector2(0.5f, 0f), new Vector2(0f, 160f), new Vector2(350f, 70f));
+            Wire(canvasGo.AddComponent<PauseMenuUI>(), ("panel", pausePanel.gameObject), ("gearButton", gear),
+                ("resumeButton", resume), ("quickSaveButton", quickSave), ("quitButton", quit),
+                ("masterSlider", masterSlider), ("musicSlider", musicSlider), ("sfxSlider", sfxSlider),
+                ("masterValue", masterValue), ("musicValue", musicValue), ("sfxValue", sfxValue));
 
             Wire(canvasGo.AddComponent<HUDController>(),
                 ("creditsText", credits), ("coinsText", coins), ("ecoText", eco),
@@ -801,6 +968,28 @@ namespace OceanGuardians.EditorTools
             var t = Text("Label", img.rectTransform, label, 28, Color.white);
             t.fontStyle = FontStyles.Bold;
             return t;
+        }
+
+        /// <summary>A labelled 0..1 volume slider row for the pause menu. Returns (slider, value label).</summary>
+        static (Slider, TMP_Text) VolumeRow(Component parent, string label, Vector2 pos)
+        {
+            var nameText = Text("Label", parent, label, 26, new Color(0.15f, 0.22f, 0.27f));
+            Place(nameText.rectTransform, new Vector2(0.5f, 1f), pos + new Vector2(-235f, 0f), new Vector2(250f, 40f));
+            nameText.alignment = TextAlignmentOptions.MidlineLeft;
+            var track = Panel("SliderTrack", parent, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), pos + new Vector2(70f, 0f), new Vector2(340f, 24f), new Color(0.75f, 0.8f, 0.85f));
+            track.raycastTarget = true;
+            var fill = Panel("Fill", track.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, new Color(0.25f, 0.7f, 0.45f));
+            fill.sprite = null;
+            var handle = Panel("Handle", track.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), Vector2.zero, new Vector2(34f, 34f), Color.white, roundSprite);
+            handle.raycastTarget = true;
+            var slider = track.gameObject.AddComponent<Slider>();
+            slider.fillRect = fill.rectTransform;
+            slider.handleRect = handle.rectTransform;
+            slider.targetGraphic = handle;
+            slider.direction = Slider.Direction.LeftToRight;
+            var value = Text("Value", parent, "100%", 26, new Color(0.15f, 0.22f, 0.27f));
+            Place(value.rectTransform, new Vector2(0.5f, 1f), pos + new Vector2(300f, 0f), new Vector2(100f, 40f));
+            return (slider, value);
         }
 
         static Button Btn(string name, Component parent, string label, Color color, Vector2 anchor, Vector2 pos, Vector2 size)

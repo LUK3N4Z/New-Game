@@ -18,6 +18,7 @@ namespace OceanGuardians.Core
         public int LitterCollected { get; private set; }
         public int BeachFinds { get; private set; }
         public int WildlifeRescued { get; private set; }
+        public int CraftedToday { get; private set; }
         public int CreditsEarned { get; private set; }
         public int CoinsEarned { get; private set; }
         public int EcoEarned { get; private set; }
@@ -44,6 +45,7 @@ namespace OceanGuardians.Core
             EventManager.WildlifeRescued += OnRescued;
             EventManager.CurrencyChanged += OnCurrencyChanged;
             EventManager.JournalUnlocked += OnJournalUnlocked;
+            EventManager.ItemCrafted += OnCrafted;
         }
 
         void OnDisable()
@@ -52,6 +54,7 @@ namespace OceanGuardians.Core
             EventManager.WildlifeRescued -= OnRescued;
             EventManager.CurrencyChanged -= OnCurrencyChanged;
             EventManager.JournalUnlocked -= OnJournalUnlocked;
+            EventManager.ItemCrafted -= OnCrafted;
         }
 
         void OnItemCollected(ItemData item, Vector3 _)
@@ -61,6 +64,7 @@ namespace OceanGuardians.Core
         }
 
         void OnRescued(string _) => WildlifeRescued++;
+        void OnCrafted(string _) => CraftedToday++;
 
         void OnJournalUnlocked(JournalEntry entry)
         {
@@ -83,15 +87,15 @@ namespace OceanGuardians.Core
 
         public void ResetDay()
         {
-            LitterCollected = BeachFinds = WildlifeRescued = 0;
+            LitterCollected = BeachFinds = WildlifeRescued = CraftedToday = 0;
             CreditsEarned = CoinsEarned = EcoEarned = 0;
             JournalTitlesToday.Clear();
         }
 
         /// <summary>Save-load restore (balances re-baseline from the live wallet).</summary>
-        public void Restore(int litter, int finds, int rescues, int credits, int coins, int eco, IEnumerable<string> journalTitles)
+        public void Restore(int litter, int finds, int rescues, int credits, int coins, int eco, IEnumerable<string> journalTitles, int crafted = 0)
         {
-            LitterCollected = litter; BeachFinds = finds; WildlifeRescued = rescues;
+            LitterCollected = litter; BeachFinds = finds; WildlifeRescued = rescues; CraftedToday = crafted;
             CreditsEarned = credits; CoinsEarned = coins; EcoEarned = eco;
             JournalTitlesToday.Clear();
             if (journalTitles != null) JournalTitlesToday.AddRange(journalTitles);

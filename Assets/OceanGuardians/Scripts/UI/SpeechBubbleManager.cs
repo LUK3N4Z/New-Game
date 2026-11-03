@@ -19,7 +19,14 @@ namespace OceanGuardians.UI
         bool bagWasFull;
         int lastCreditGain, lastCreditsTotal = -1;
 
+        public static SpeechBubbleManager Instance { get; private set; }
+
         Transform Coral => GameManager.Instance && GameManager.Instance.Player ? GameManager.Instance.Player.transform : null;
+
+        void Awake() => Instance = this;
+
+        /// <summary>Public line API for other systems (crafting, region gate, gear upgrades).</summary>
+        public void SayCoral(string line, float seconds = 4f) => coralBubble = Say(coralBubble, Coral, line, seconds);
 
         void OnEnable()
         {

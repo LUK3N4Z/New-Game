@@ -74,6 +74,7 @@ namespace OceanGuardians.UI
                 sb.AppendLine($"<b>Litter Collected:</b> {N(s?.LitterCollected)} pieces  (+{N(s?.CreditsEarned)} Recycling Credits)");
                 sb.AppendLine($"<b>Beach Finds:</b> {N(s?.BeachFinds)} shells & sea glass  (+{N(s?.CoinsEarned)} Collector Coins)");
                 sb.AppendLine($"<b>Wildlife Helped:</b> {N(s?.WildlifeRescued)} rescues  (+{N(s?.EcoEarned)} Eco Tokens)");
+                sb.AppendLine($"<b>Upcycled Creations:</b> {N(s?.CraftedToday)} crafts at the workbench");
                 haulText.text = sb.ToString();
             }
             if (journalText)

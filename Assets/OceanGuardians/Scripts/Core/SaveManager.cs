@@ -49,6 +49,9 @@ namespace OceanGuardians.Core
             public float dayTimeProgress;
             public int dayLitter, dayFinds, dayRescues, dayCredits, dayCoins, dayEco;
             public List<string> dayJournalTitles = new();
+            public int dayCrafted;
+            public List<StackSave> craftedItemCounts = new(); // StackSave reused: id = recipeId, quantity = lifetime crafts
+            public bool region1Mastered;
         }
 
         public static SaveManager Instance { get; private set; }
@@ -164,7 +167,11 @@ namespace OceanGuardians.Core
                 d.dayLitter = stats.LitterCollected; d.dayFinds = stats.BeachFinds; d.dayRescues = stats.WildlifeRescued;
                 d.dayCredits = stats.CreditsEarned; d.dayCoins = stats.CoinsEarned; d.dayEco = stats.EcoEarned;
                 d.dayJournalTitles.AddRange(stats.JournalTitlesToday);
+                d.dayCrafted = stats.CraftedToday;
             }
+            var bench = Crafting.CraftingWorkbench.Instance;
+            if (bench) foreach (var kv in bench.LifetimeCounts) d.craftedItemCounts.Add(new StackSave { id = kv.Key, quantity = kv.Value });
+            if (Environment.RegionGate.Instance) d.region1Mastered = Environment.RegionGate.Instance.Region1Mastered;
 
             var bag = BagSystem.Instance;
             if (bag)
@@ -199,7 +206,9 @@ namespace OceanGuardians.Core
             OceanJournal.Instance?.Restore(d.journal);
             Quests.QuestManager.Instance?.RestoreState(d.currentActiveQuestId, d.currentQuestStepIndex, d.currentQuestStepProgress, d.completedQuestIds);
             Environment.DayNightCycle.Instance?.Restore(d.currentDayNumber, d.dayTimeProgress);
-            DayStats.Instance?.Restore(d.dayLitter, d.dayFinds, d.dayRescues, d.dayCredits, d.dayCoins, d.dayEco, d.dayJournalTitles);
+            DayStats.Instance?.Restore(d.dayLitter, d.dayFinds, d.dayRescues, d.dayCredits, d.dayCoins, d.dayEco, d.dayJournalTitles, d.dayCrafted);
+            Crafting.CraftingWorkbench.Instance?.RestoreCounts(d.craftedItemCounts.Select(s => new System.Collections.Generic.KeyValuePair<string, int>(s.id, s.quantity)));
+            Environment.RegionGate.Instance?.RestoreMastered(d.region1Mastered);
 
             var byId = itemCatalog.Where(i => i != null).ToDictionary(i => i.Id);
             IEnumerable<ItemStack> Stacks(List<StackSave> list) =>

@@ -36,6 +36,8 @@ namespace OceanGuardians.Player
         PlayerInteraction interaction;
         readonly HashSet<string> animParams = new();
         Vector3 visualBase;
+        /// <summary>Extra yaw (degrees) composed into the Visual rotation - PlayerVisualEquipment's upgrade spin writes this.</summary>
+        public float ExtraYaw;
         float bobPhase, squash; // squash: -1 (squashed) .. 1 (stretched), springs to 0
         float squashVelocity;
         float celebrateTime = -1f;
@@ -104,7 +106,7 @@ namespace OceanGuardians.Player
             float bob = moving ? Mathf.Abs(Mathf.Sin(bobPhase)) * bobHeight * speed01 : 0f;
             float tilt = moving ? Mathf.Sin(bobPhase) * tiltDegrees * speed01 : 0f;
             visual.localPosition = visualBase + Vector3.up * (bob + jump);
-            visual.localRotation = Quaternion.Euler(speed01 * 4f, 0f, tilt);
+            visual.localRotation = Quaternion.Euler(speed01 * 4f, ExtraYaw, tilt);
             visual.localScale = new Vector3(1f - squash * 0.09f, 1f + squash * 0.14f, 1f - squash * 0.09f);
 
             UpdateTong();

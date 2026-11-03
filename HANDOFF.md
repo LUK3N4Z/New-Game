@@ -1,30 +1,28 @@
-# Handoff: Ocean Guardians Phase 4
+# Handoff: Ocean Guardians Phase 5
 
-**Branch:** `feat/phase-4` (based on `feat/phase-3`), pushed to [LUK3N4Z/New-Game](https://github.com/LUK3N4Z/New-Game/tree/feat/phase-4).
+**Branch:** `feat/phase-5` (based on `feat/phase-4`), pushed to [LUK3N4Z/New-Game](https://github.com/LUK3N4Z/New-Game/tree/feat/phase-5).
 **Unity:** 6000.6.4f1, URP.
 
 ## Status
-Compiles with zero errors/warnings. Greybox scene rebuilt headless and committed (tent, campfire, dial, wrap-up modal all present). All 13 EditMode tests pass (4 inventory + 5 quest + 4 day-cycle). Play Mode has **not** been hand-tested: sun/shadow feel over a full day, wrap-up flow, bubble legibility, and bob/squash feel all need a play pass. Set `dayLengthSeconds` low (e.g. 60) on DayNightCycle in the Inspector to test a full day quickly.
+Compiles with zero errors/warnings. Greybox scene rebuilt headless and committed (workbench, gate, pause/crafting/map modals, gear accessories all present). All 15 EditMode tests pass (4 inventory + 5 quest + 4 day-cycle + 2 crafting). Play Mode not yet hand-tested.
 
 ## What's done
 
 | Requirement | Where | Notes |
 |---|---|---|
-| A. Daylight cycle | `Environment/DayNightCycle.cs`, `UI/SunDialUI.cs` | 9 min default (`dayLengthSeconds`), manual `AdvanceTime(fraction)`. Sun color/intensity/rotation + ambient + sky interpolate across Morning/Midday/Sunset/Dusk stops; campfire light fades on at dusk. Walking is free; car tires (stage ≥ 9 litter) and rescues advance time by `heavyTaskTime` (2%). |
-| B. Day Wrap-Up | `UI/DaySummaryUI.cs`, `Core/DayStats.cs`, `Environment/BaseCampTent.cs` | Opens at end of dusk or by clicking the tent (camp at -18,-16). Fades out, warps Coral to the campfire, fades in. DayStats tallies pickups/rescues and *positive* currency deltas (spending doesn't shrink "earned today"); journal highlight lists today's new entry titles. Sleep = next day, stats reset, `PlayMorningBirdsong()`, checkpoint save. |
-| C. Speech bubbles | `UI/SpeechBubbleUI.cs`, `UI/SpeechBubbleManager.cs` | Screen-space like FloatingText, so no terrain clipping at 55°. Bounce pop-in, follows anchor, tap to skip, one bubble per speaker. Lines: sea glass, bag full, quest complete, dusk, seal "Arf! Arf!" + floating `<3` hearts, kiosk "Sorted! +X Credits". |
-| D. Procedural animation | `Player/ProceduralAnimator.cs` | Builder now groups Coral's parts under a `Visual` child. Speed bob/tilt/lean, spring squash (halt), grab stretch, celebrate jump (quests + rescues), grabber tong cylinder stretched hand→litter while a litter target is active. Animator bridge feeds `Speed`/`IsInteracting`/`Celebrate` when a rigged model arrives. `PlayerController.SetAnimTrigger` forwards Grab/Celebrate. |
-| E. Shoreline | `Environment/ShorelineWave.cs` over existing `ShoreWaves.cs` | Sanderling flee/forage + wash already existed since Phase 2. Added: 14 undulating foam segments riding the front, and a transparent wet-sand band that soaks on surge and dries over ~9 s (runtime-instanced material). Splash footsteps already sync via `WaterZone.IsWet`. |
-
-## Persistence
-SaveData gained `currentDayNumber`, `dayTimeProgress`, and the six daily tallies + today's journal titles. Old (Phase 3) saves load fine: day defaults to 1 at morning with an empty tally. Note: DayStats re-baselines currency deltas on restore, so loaded balances never count as "earned".
+| A. Upcycling workshop | `Scripts/Crafting/{CraftingRecipeData,CraftingWorkbench}.cs`, `UI/CraftingUI.cs`, assets `Data/Recipe_*.asset` | New pure-model ops `Inventory.CountOf/TryRemove` + `BagSystem` collection remove (all-or-nothing). Bench beside the tent, modal auto-closes on walk-away like the kiosk. Craft = chime + `EventManager.ItemCrafted` + speech bubble + DayStats tally + checkpoint save. Lifetime counts persist. |
+| B. Visual gear | `Player/PlayerVisualEquipment.cs` + builder | Stage 2 teal 1.3x backpack w/ pouches, Stage 3 silver tong material (+40% grab in `ProgressionManager.Recalculate`, feeds the existing `GrabRange` → `LitterItem.InteractionRange`), Stage 5 aqua boots. Purchase = celebrate jump + spin (via `ProceduralAnimator.ExtraYaw`) + starburst particles. Applies on load too. |
+| C. Region 2 gate | `Environment/RegionGate.cs`, `UI/RegionGateUI.cs` | NE corner (20, 21): bluff arch, driftwood barricade, TMP signpost. < Stage 5: exact speech-bubble line. ≥ 5: confirm modal → brass fanfare, barricade clears, world-map teaser stamps Region 1 MASTERED, `region1Mastered` persists. |
+| D. Pause menu | `UI/PauseMenuUI.cs` | Esc or top-bar Gear button; `Time.timeScale = 0`; master/music/SFX sliders write `AudioManager` → PlayerPrefs (`vol_master/music/sfx`, loaded on startup); controls overview; Quick Save; Save & Quit. |
 
 ## Deviations (deliberate)
-- No emoji in the wrap-up/bubbles: the TMP default font lacks those glyphs, so lines use text (`<3`, "(thumbs up)") until an emoji-capable font is imported.
-- "Camera pan to camp" is implemented as fade → warp → fade (the iso camera follows Coral, so warping her *is* the pan, minus motion sickness).
+- **Ghost Net was not a collectable item**, so the Ocean Sunglasses recipe could never be crafted. Added it as litter (`ghost_net`, Blue bin, 8 credits, stack 2, journal `ghost_gear`); 3 spawn on the beach like other litter.
+- Stage names in the brief (Stage 2 "Heavy-Duty Bag" etc.) don't match the canonical 50-stage ladder; visual thresholds use the brief's stage *numbers* (2 bag, 3 grabber, 5 boots) without renaming ladder stages.
+- "Full water walking speed" at Stage 5: there is no wading slowdown anywhere in the game, so boots are visual-only for now (adding a slowdown just to remove it later would be inventing a mechanic).
+- QuestManager has no Craft step type yet; `ItemCrafted` is raised so a future quest step can hook it without touching the workbench.
 
 ## Still to do
-1. **Playtest a full day** (shorten `dayLengthSeconds`): lighting transitions, lantern at dusk, dusk bubble, wrap-up numbers vs actual earnings, sleep → morning + save reload.
-2. **Tent mid-day rest**: confirm wrap-up + new day feels right when ending early.
-3. **Bubble check at 55°** on a small (mobile) resolution; resize bubble if it crowds the minimap/quest card.
-4. **Squash tuning**: bob amplitude/frequency and tong alignment while grabbing near rocks.
+1. **Playtest crafting:** collect 3 bottles + 1 ghost net → craft sunglasses, check counts, rewards, bubble, wrap-up "Upcycled Creations" line, save/reload keeps lifetime craft counts and remaining bag.
+2. **Gear check:** buy stages 2/3/5 at the kiosk (credits needed: 45/75/165 by the cost curve) — backpack swap, silver tong + longer grab, aqua boots, spin + sparkle; reload and confirm visuals restore.
+3. **Gate check:** bubble below Stage 5; modal + fanfare + map at Stage 5; barricade stays cleared after F9.
+4. **Pause check:** Esc during daylight freezes the sun; sliders change volume live and survive restart; Resume/Quick Save/Quit paths. Watch for any system misbehaving under `timeScale = 0` (speech bubbles and fades use scaled/unscaled time inconsistently — bubbles freeze mid-pause, which is fine).

@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f8590e182000db3489eecc1680bfc6e1, type: 3}
+  m_Name: Recipe_SeaGlassBracelet
+  m_EditorClassIdentifier: Assembly-CSharp::OceanGuardians.Crafting.CraftingRecipeData
+  recipeId: sea_glass_bracelet
+  recipeName: Sea Glass Bracelet
+  recipeDescription: Sparkly wrist treasure.
+  recipeIcon: {fileID: 0}
+  requiredLitter: []
+  requiredFinds:
+  - item: {fileID: 11400000, guid: c1f506fa731499b41a8c41b492478012, type: 2}
+    quantity: 2
+  - item: {fileID: 11400000, guid: 0c55a267f84349740a68a208c77dbc54, type: 2}
+    quantity: 2
+  rewardCollectorCoins: 50
+  rewardEcoTokens: 25
+  unlockRequiredStage: 0

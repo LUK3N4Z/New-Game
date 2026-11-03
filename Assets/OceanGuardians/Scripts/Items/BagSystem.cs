@@ -50,6 +50,18 @@ namespace OceanGuardians.Items
             EventManager.RaiseCollectionChanged();
         }
 
+        public int CollectionCount(CollectibleItemData find) => collection.TryGetValue(find, out int n) ? n : 0;
+
+        /// <summary>All-or-nothing collection removal (crafting ingredients).</summary>
+        public bool TryRemoveFromCollection(CollectibleItemData find, int quantity)
+        {
+            if (CollectionCount(find) < quantity) return false;
+            int left = collection[find] - quantity;
+            if (left <= 0) collection.Remove(find); else collection[find] = left;
+            EventManager.RaiseCollectionChanged();
+            return true;
+        }
+
         /// <summary>Empties the bag and returns its stacks (for the kiosk to convert).</summary>
         public List<ItemStack> EmptyAll() => Bag.RemoveAll();
 
