@@ -82,6 +82,7 @@ namespace OceanGuardians.Player
 
         public void PlayPickupSound(AudioClip clip)
         {
+            if (clip == null && Audio.AudioManager.Instance) { Audio.AudioManager.Instance.PlayPickupPop(); return; }
             if (audioSource == null) return;
             if (clip == null) clip = defaultPickupSound;
             if (clip == null) clip = GetChirp();

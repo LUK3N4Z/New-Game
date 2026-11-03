@@ -43,6 +43,11 @@ namespace OceanGuardians.Player
         readonly HashSet<string> animParams = new();
         bool holding;
         float nextRepathTime;
+        [Header("Footsteps")]
+        [Tooltip("Metres walked between footstep sounds (sand crunch vs tidepool/wash splash).")]
+        [SerializeField] float strideLength = 1.6f;
+        float strideTravelled;
+        Vector3 lastPos;
 
         /// <summary>True during scripted moments (e.g. the Tender Care rescue) to ignore player input.</summary>
         public bool InputLocked { get; set; }
@@ -52,6 +57,7 @@ namespace OceanGuardians.Player
         {
             agent = GetComponent<NavMeshAgent>();
             interaction = GetComponent<PlayerInteraction>();
+            lastPos = transform.position;
             if (cam == null) cam = Camera.main;
             if (animator != null)
                 foreach (var p in animator.parameters) animParams.Add(p.name);
@@ -60,11 +66,19 @@ namespace OceanGuardians.Player
         void Update()
         {
             if (animParams.Contains("Speed")) animator.SetFloat(SpeedHash, agent.velocity.magnitude);
+            UpdateFootsteps();
             if (!InputLocked) HandlePointer();
         }
 
         void HandlePointer()
         {
+            // Two-finger gesture = camera pinch-zoom (IsoCameraRig), never a move order.
+            var touch = Touchscreen.current;
+            if (touch != null && (touch.touches[0].isInProgress && touch.touches[1].isInProgress))
+            {
+                holding = false;
+                return;
+            }
             var pointer = Pointer.current;
             if (pointer == null || cam == null) return;
 
@@ -107,7 +121,18 @@ namespace OceanGuardians.Player
             }
         }
 
-        /// <summary>UI raycast at the exact pointer position (reliable for touch on the press frame).</summary>
+        void UpdateFootsteps()
+        {
+            // Distance-based stride: splash inside tidepools/wave wash, soft crunch on sand.
+            strideTravelled += Vector3.Distance(transform.position, lastPos);
+            lastPos = transform.position;
+            if (strideTravelled < strideLength || agent.velocity.sqrMagnitude < 0.04f) return;
+            strideTravelled = 0f;
+            Audio.AudioManager.Instance?.PlayFootstep(Environment.WaterZone.IsWet(transform.position));
+        }
+
+        /// <summary>UI raycast at the exact pointer position (reliable for touch on the press frame).
+        /// Equivalent to EventSystem.IsPointerOverGameObject(touchId) but works for mouse, pen and touch alike.</summary>
         public static bool IsOverUI(Vector2 screenPos)
         {
             var es = EventSystem.current;

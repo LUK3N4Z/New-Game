@@ -41,6 +41,10 @@ namespace OceanGuardians.Core
             public List<StackSave> collection = new();
             public List<string> clearedLitter = new();
             public List<string> rescued = new();
+            public string currentActiveQuestId = "";
+            public int currentQuestStepIndex;
+            public int currentQuestStepProgress;
+            public List<string> completedQuestIds = new();
         }
 
         public static SaveManager Instance { get; private set; }
@@ -140,6 +144,14 @@ namespace OceanGuardians.Core
             }
             if (ProgressionManager.Instance) d.equipmentStage = ProgressionManager.Instance.CurrentStage;
             if (OceanJournal.Instance) d.journal.AddRange(OceanJournal.Instance.UnlockedIds);
+            var quests = Quests.QuestManager.Instance;
+            if (quests)
+            {
+                d.currentActiveQuestId = quests.CurrentActiveQuestId;
+                d.currentQuestStepIndex = quests.CurrentQuestStepIndex;
+                d.currentQuestStepProgress = quests.CurrentQuestStepProgress;
+                d.completedQuestIds.AddRange(quests.CompletedQuestIds);
+            }
 
             var bag = BagSystem.Instance;
             if (bag)
@@ -172,6 +184,7 @@ namespace OceanGuardians.Core
             }
             ProgressionManager.Instance?.RestoreStage(d.equipmentStage); // before the bag: stage sets capacity
             OceanJournal.Instance?.Restore(d.journal);
+            Quests.QuestManager.Instance?.RestoreState(d.currentActiveQuestId, d.currentQuestStepIndex, d.currentQuestStepProgress, d.completedQuestIds);
 
             var byId = itemCatalog.Where(i => i != null).ToDictionary(i => i.Id);
             IEnumerable<ItemStack> Stacks(List<StackSave> list) =>

@@ -19,6 +19,7 @@ using OceanGuardians.Items;
 using OceanGuardians.Player;
 using OceanGuardians.Progression;
 using OceanGuardians.UI;
+using OceanGuardians.Quests;
 
 namespace OceanGuardians.EditorTools
 {
@@ -83,6 +84,7 @@ namespace OceanGuardians.EditorTools
             {
                 var pool = Prim(PrimitiveType.Cylinder, "Tidepool", null, pos + Vector3.up * 0.01f, new Vector3(2.6f, 0.01f, 1.8f), Mat("Tidepool", new Color(0.25f, 0.55f, 0.6f)));
                 Object.DestroyImmediate(pool.GetComponent<Collider>());
+                pool.AddComponent<WaterZone>(); // splashy footsteps
                 rocks.Add(pool.transform); // crab habitat
             }
 
@@ -108,6 +110,10 @@ namespace OceanGuardians.EditorTools
             Wire(game.AddComponent<ProgressionManager>(), ("database", data.database));
             game.AddComponent<OceanJournal>();
             WireArray(game.AddComponent<SaveManager>(), "itemCatalog", data.items.Select(i => (Object)i.data).ToArray());
+            WireArray(game.AddComponent<QuestManager>(), "questCatalog", CreateQuestAssets().Select(q => (Object)q).ToArray());
+            Wire(game.AddComponent<OceanGuardians.Audio.AudioManager>(), ("wavesEmitter", (Object)Object.FindAnyObjectByType<ShoreWaves>().transform));
+            var cove = new GameObject("QuestArea_WildlifeCove") { transform = { position = seal.transform.position } };
+            Wire(cove.AddComponent<QuestAreaTrigger>(), ("areaId", "wildlife_cove"), ("radius", 6f), ("player", player.transform));
 
             new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule)).GetComponent<InputSystemUIInputModule>().AssignDefaultActions();
             BuildHud(cam, player.transform, kiosk.transform, seal.transform);
@@ -177,6 +183,17 @@ namespace OceanGuardians.EditorTools
             Find("Conch Shell", 2, "mollusk_shells", PrimitiveType.Capsule, new Vector3(0.18f, 0.18f, 0.18f), new Color(1f, 0.82f, 0.7f));
             return d;
         }
+
+        /// <summary>Authors the 3 tutorial QuestData assets from QuestManager's built-in definitions.</summary>
+        static List<QuestData> CreateQuestAssets() =>
+            QuestManager.CreateTutorialQuests().Select(t => Asset<QuestData>(t.name, q =>
+            {
+                q.questId = t.questId; q.questTitle = t.questTitle; q.questDescription = t.questDescription;
+                q.rewardCredits = t.rewardCredits; q.rewardCollectorCoins = t.rewardCollectorCoins;
+                q.rewardEcoTokens = t.rewardEcoTokens; q.rewardJournalEntryId = t.rewardJournalEntryId;
+                q.nextQuestId = t.nextQuestId;
+                q.steps.AddRange(t.steps.Select(s => s.Clone()));
+            })).ToList();
 
         static T Asset<T>(string name, System.Action<T> init) where T : ScriptableObject
         {
@@ -425,6 +442,19 @@ namespace OceanGuardians.EditorTools
             var mapPlayer = Panel("PlayerPin", map.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(22f, 22f), new Color(1f, 0.45f, 0.3f), roundSprite);
             var kioskPin = Panel("KioskPin", map.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(22f, 22f), new Color(0.2f, 0.5f, 0.95f), panelSprite);
             var sealPin = Panel("RescuePin", map.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(22f, 22f), new Color(1f, 0.4f, 0.65f), roundSprite);
+
+            // ---- Quest tracker (right side, under the minimap; tap header to fold) ----
+            var questCard = Panel("QuestTracker", hud, Vector2.one, Vector2.one, new Vector2(-160f, -490f), new Vector2(300f, 210f), new Color(0.99f, 0.97f, 0.9f, 0.95f));
+            questCard.raycastTarget = true;
+            var questHeader = Btn("QuestHeader", questCard.rectTransform, "Quest", new Color(0.15f, 0.55f, 0.55f), new Vector2(0.5f, 1f), new Vector2(0f, -28f), new Vector2(280f, 46f));
+            var questTitle = questHeader.GetComponentInChildren<TMP_Text>();
+            questTitle.fontSize = 24;
+            var questStar = Panel("QuestStar", questCard.rectTransform, Vector2.one, Vector2.one, new Vector2(-24f, -28f), new Vector2(34f, 34f), new Color(1f, 0.82f, 0.2f), roundSprite);
+            var questSteps = Text("QuestSteps", questCard.rectTransform, "", 20, new Color(0.14f, 0.25f, 0.29f));
+            Place(questSteps.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -125f), new Vector2(280f, 140f));
+            questSteps.alignment = TextAlignmentOptions.TopLeft;
+            Wire(canvasGo.AddComponent<QuestTrackerUI>(), ("panel", questCard), ("headerButton", questHeader),
+                ("titleText", questTitle), ("stepsText", questSteps), ("starIcon", questStar));
 
             // ---- Alert (top-centre) ----
             var alert = Text("Alert", hud, "", 34, new Color(1f, 0.97f, 0.85f));

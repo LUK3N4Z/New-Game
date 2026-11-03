@@ -75,6 +75,7 @@ namespace OceanGuardians.Environment
             economy?.Add(CurrencyType.RecyclingCredits, credits);
             economy?.Add(CurrencyType.EcoTokens, eco);
             OceanJournal.Instance?.Discover(journalEntryOnFirstDeposit);
+            EventManager.RaiseLitterDeposited(count); // quest deposit steps + coin jingle
             EventManager.RaiseCheckpoint(); // auto-save
 
             var sb = new StringBuilder();

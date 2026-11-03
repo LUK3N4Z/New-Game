@@ -32,6 +32,8 @@ namespace OceanGuardians.CameraControl
         [SerializeField] float startDistance = 24f;
         [Tooltip("Distance change per wheel notch.")]
         [SerializeField] float zoomStep = 3f;
+        [Tooltip("Pinch zoom: camera metres per pixel of two-finger spread change.")]
+        [SerializeField] float pinchZoomPerPixel = 0.03f;
         [Tooltip("Seconds to ease into a new zoom level.")]
         [SerializeField] float zoomSmoothTime = 0.15f;
 
@@ -72,7 +74,37 @@ namespace OceanGuardians.CameraControl
             leadTarget.position = player.position + lead;
         }
 
+        float lastPinchDistance = -1f;
+
         void ReadZoom()
+        {
+            if (!ReadPinchZoom()) ReadWheelZoom();
+        }
+
+        /// <summary>Two-finger pinch/spread zoom. Returns true while a pinch is active.</summary>
+        bool ReadPinchZoom()
+        {
+            var touch = Touchscreen.current;
+            if (touch == null || !touch.touches[0].isInProgress || !touch.touches[1].isInProgress)
+            {
+                lastPinchDistance = -1f;
+                return false;
+            }
+            // Pinching on a HUD card must not zoom the beach behind it.
+            if (PlayerController.IsOverUI(touch.touches[0].position.ReadValue()) ||
+                PlayerController.IsOverUI(touch.touches[1].position.ReadValue()))
+            {
+                lastPinchDistance = -1f;
+                return true;
+            }
+            float pinch = Vector2.Distance(touch.touches[0].position.ReadValue(), touch.touches[1].position.ReadValue());
+            if (lastPinchDistance > 0f) // spread out (bigger distance) = zoom in (smaller camera distance)
+                targetDistance = Mathf.Clamp(targetDistance - (pinch - lastPinchDistance) * pinchZoomPerPixel, minDistance, maxDistance);
+            lastPinchDistance = pinch;
+            return true;
+        }
+
+        void ReadWheelZoom()
         {
             var mouse = Mouse.current;
             if (mouse == null) return;

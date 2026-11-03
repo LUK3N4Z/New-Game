@@ -51,6 +51,12 @@ namespace OceanGuardians.Core
         public static event Action CollectionChanged;
         /// <summary>A meaningful moment happened (deposit, rescue) - SaveManager auto-saves.</summary>
         public static event Action Checkpoint;
+        /// <summary>(itemCount) - litter sorted into the kiosk bins. Drives quest deposit steps.</summary>
+        public static event Action<int> LitterDeposited;
+        /// <summary>(rescueSaveId) - a Tender Care rescue finished. Drives quest rescue steps.</summary>
+        public static event Action<string> WildlifeRescued;
+        /// <summary>(areaId) - Coral entered a named place. Drives quest visit steps.</summary>
+        public static event Action<string> AreaReached;
 
         public static void RaiseCurrencyChanged(CurrencyType type, int total) => CurrencyChanged?.Invoke(type, total);
         public static void RaiseBagChanged(int current, int max) => BagChanged?.Invoke(current, max);
@@ -63,6 +69,9 @@ namespace OceanGuardians.Core
         public static void RaiseKioskToggled(RecyclingKiosk kiosk) => KioskToggled?.Invoke(kiosk);
         public static void RaiseCollectionChanged() => CollectionChanged?.Invoke();
         public static void RaiseCheckpoint() => Checkpoint?.Invoke();
+        public static void RaiseLitterDeposited(int itemCount) => LitterDeposited?.Invoke(itemCount);
+        public static void RaiseWildlifeRescued(string saveId) => WildlifeRescued?.Invoke(saveId);
+        public static void RaiseAreaReached(string areaId) => AreaReached?.Invoke(areaId);
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ClearAll()
@@ -70,6 +79,7 @@ namespace OceanGuardians.Core
             CurrencyChanged = null; BagChanged = null; ItemCollected = null; Alert = null;
             JournalUnlocked = null; StagePurchased = null; TargetChanged = null;
             RescueNearby = null; KioskToggled = null; CollectionChanged = null; Checkpoint = null;
+            LitterDeposited = null; WildlifeRescued = null; AreaReached = null;
         }
     }
 }

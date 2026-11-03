@@ -108,6 +108,7 @@ namespace OceanGuardians.Environment
 
             // 4. Rewards.
             IsRescued = true;
+            EventManager.RaiseWildlifeRescued(saveId); // quest rescue steps + fanfare
             EconomyManager.Instance?.Add(CurrencyType.EcoTokens, ecoTokenReward);
             EventManager.RaiseAlert($"You freed the {animalName}! +{ecoTokenReward} Eco");
             EventManager.RaiseRescueNearby(null);

@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e58fc9c1963f7f640b794c81d612894a, type: 3}
+  m_Name: Quest_quest_01_first_sweep
+  m_EditorClassIdentifier: Assembly-CSharp::OceanGuardians.Quests.QuestData
+  questId: quest_01_first_sweep
+  questTitle: First Sweep
+  questDescription: Clean up the shoreline and sort your haul at the kiosk.
+  questIcon: {fileID: 0}
+  steps:
+  - stepType: 0
+    stepDescription: Collect 5 Plastic Bottles along the shoreline
+    targetId: plastic_bottle
+    targetAmount: 5
+    currentProgress: 0
+    isComplete: 0
+  - stepType: 1
+    stepDescription: Deposit collected litter at the 3-Bin Kiosk
+    targetId: 
+    targetAmount: 1
+    currentProgress: 0
+    isComplete: 0
+  rewardCredits: 50
+  rewardCollectorCoins: 0
+  rewardEcoTokens: 10
+  rewardJournalEntryId: 
+  nextQuestId: quest_02_cove_distress
